@@ -329,7 +329,7 @@ toolkit = (() => {
         switch (drawing.type) {
             case "closedbspline":
             case "bspline":
-                movePoints(dx,dy,drawing.data);
+                movePoints(dx, dy, drawing.data);
                 break;
             case "compound":
                 for (let i = 0; i < drawing.data.length; i++) {
@@ -411,7 +411,7 @@ toolkit = (() => {
     }
 
     function isPointInHVRectangle(rect, x, y, delta) {
-        if (delta==undefined) delta=0;
+        if (delta == undefined) delta = 0;
         let minx, miny, maxx, maxy;
         if (rect[0] < rect[2]) {
             minx = rect[0];
@@ -613,10 +613,10 @@ toolkit = (() => {
     }
 
     function splitLeft(bspline, offset, t) {
-        let p4 = [(1 - t) * bspline[0+offset] + t * bspline[2+offset],
-        (1 - t) * bspline[1+offset] + t * bspline[3+offset]];
-        let p5 = [(1 - t) * bspline[2+offset] + t * bspline[4+offset],
-        (1 - t) * bspline[3+offset] + t * bspline[5+offset]];
+        let p4 = [(1 - t) * bspline[0 + offset] + t * bspline[2 + offset],
+        (1 - t) * bspline[1 + offset] + t * bspline[3 + offset]];
+        let p5 = [(1 - t) * bspline[2 + offset] + t * bspline[4 + offset],
+        (1 - t) * bspline[3 + offset] + t * bspline[5 + offset]];
         let p6 = [(1 - t) * p4[0] + t * p5[0], (1 - t) * p4[1] + t * p5[1]];
 
         return [bspline[0], bspline[1], p4[0], p4[1], p6[0], p6[1]];
@@ -634,7 +634,7 @@ toolkit = (() => {
         bspline[offset + 5]];
     }
 
-    function cutPathSegment(x1, y1, x2, y2, bspline) {
+    function cutBSplineSegment(x1, y1, x2, y2, bspline) {
         // for all curves in points,
         // if the curve does not intersect the line, accumulate the curve in
         // temp
@@ -674,7 +674,7 @@ toolkit = (() => {
             }
             // quickly check if offset has a chance of intersecting the line or
             // not
-            if (!intersectsHVRectangles([x1, y1, x2, y2], getBoundingHVRectangle(bspline,offset,6))) {
+            if (!intersectsHVRectangles([x1, y1, x2, y2], getBoundingHVRectangle(bspline, offset, 6))) {
                 for (let i = 2; i < 6; i++) {
                     current.push(bspline[offset + i]);
                 }
@@ -731,22 +731,39 @@ toolkit = (() => {
         return ret;
     }
 
+    function intersectsBSplineSegment(x1, y1, x2, y2, bspline) {
+        for (let offset = 0; offset < bspline.length - 2; offset += 4) {
+            // segment ?
+            if (Math.abs((bspline[1 + offset] - bspline[3 + offset]) * (bspline[offset] - bspline[offset + 4]) - (bspline[offset + 1] - bspline[offset + 5]) * (bspline[offset] - bspline[offset + 2])) < 0.01) {
+                if (intersectsSegmentSegment(bspline[offset + 0], bspline[offset + 1], bspline[offset + 4], bspline[offset + 5], x1, y1, x2, y2) != null) return true;
+                continue;
+            }
+            // quickly check if offset has a chance of intersecting the line or
+            // not
+            if (!intersectsHVRectangles([x1, y1, x2, y2], getBoundingHVRectangle(bspline, offset, 6))) {
+                continue;
+            } else {
+                if (intersectsCurveSegment(bspline, offset, x1, y1, x2, y2).length > 0) return true;
+            }
+        }
+        return false;
+    }
 
     function cutBSPline(x1, y1, x2, y2, drawing) {
-        let ret = cutPathSegment(x1, y1, x2, y2, drawing.data);
+        let ret = cutBSplineSegment(x1, y1, x2, y2, drawing.data);
         switch (drawing.type) {
             case "closedbspline":
-                    for(let i=0; i<ret.length; i++) {
-                        ret[i].push((ret[i][0]+ret[i][ret[i].length-2])/2);
-                        ret[i].push((ret[i][1]+ret[i][ret[i].length-1])/2);
-                        ret[i].push(ret[i][0]);
-                        ret[i].push(ret[i][1]);
-                        ret[i]={type:"closedbspline",data:ret[i]};
-                    }
-                    break;
+                for (let i = 0; i < ret.length; i++) {
+                    ret[i].push((ret[i][0] + ret[i][ret[i].length - 2]) / 2);
+                    ret[i].push((ret[i][1] + ret[i][ret[i].length - 1]) / 2);
+                    ret[i].push(ret[i][0]);
+                    ret[i].push(ret[i][1]);
+                    ret[i] = { type: "closedbspline", data: ret[i] };
+                }
+                break;
             case "bspline":
-                for(let i=0; i<ret.length; i++) {
-                    ret[i]={type:"bspline",data:ret[i]};
+                for (let i = 0; i < ret.length; i++) {
+                    ret[i] = { type: "bspline", data: ret[i] };
                 }
                 break;
         }
@@ -773,6 +790,21 @@ toolkit = (() => {
         return ret;
     }
 
+    function intersects(x1, y1, x2, y2, drawing) {
+        switch (drawing.type) {
+            case "bspline":
+                return intersectsBSplineSegment(x1,y1,x2,y2, drawing.data);
+            case "closedbspline":
+                if (intersectsBSplineSegment(x1,y1,x2,y2, drawing.data)) return true;
+                return insideSegmentClosedBSpline(x1,y1,x2,y2, drawing.data);
+            case "compound":
+                for (let i = 0; i < drawing.data.length; i++) {
+                    if (intersects(drawing.data[i])) return true;
+                }
+        }
+        return false;
+    }
+
     return {
         distance,
         distanceWith,
@@ -788,6 +820,7 @@ toolkit = (() => {
         scale,
         angle,
         rotate,
-        cut
+        cut,
+        intersects
     }
 })();

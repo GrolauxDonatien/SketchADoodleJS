@@ -338,8 +338,67 @@ app = (() => {
         document.getElementById("cut").setAttribute("class", "selected");
     });
 
+    document.getElementById("glue").addEventListener("click", () => {
+        tool.deselect();
+        let x1, y1, x2, y2;
+        let mode=false;
+        tool = {
+            mousedown(event) {
+                x1=event.offsetX;
+                y1=event.offsetY;
+                x2=x1;
+                y2=y1;
+                mode=true;
+            },
+            mousemove(event) {
+                if (mode) {
+                    x2=event.offsetX;
+                    y2=event.offsetY;
+                    repaint();    
+                }
+            },
+            mouseup() {
+                if (mode) {
+                    mode=false;
+                    let i=0;
+                    let compound=[];
+                    let lastidx=-1;
+                    while(i<drawing.length) {
+                        if (toolkit.intersects(x1,y1,x2,y2,drawing[i])) {
+                            lastidx=i;
+                            compound.push(drawing[i]);
+                            drawing.splice(i,1);
+                        } else {
+                            i++;
+                        }
+                    }
+                    if (compound.length==1) {// only one drawing glued to itself => keep as is at the right index
+                        drawing.splice(lastidx,0,compound[0]); 
+                    } else if (compound.length>1) {
+                        drawing.splice(lastidx,0,{type:"compound",data:compound});
+                    }
+                    repaint();    
+                }
+            },
+            draw(context) {
+                if (mode) {
+                    context.beginPath();
+                    context.moveTo(x1,y1);
+                    context.lineTo(x2,y2);
+                    context.closePath();
+                    context.stroke();
+                }
+            },
+            deselect() {
+                document.getElementById("glue").removeAttribute("class");
+            },
+        }
+        struct = null;
+        document.getElementById("glue").setAttribute("class", "selected");
+    });
+
     repaint();
-    document.getElementById("cut").dispatchEvent(new Event("click"));
+    document.getElementById("glue").dispatchEvent(new Event("click"));
     return { drawing };
 
 })();
