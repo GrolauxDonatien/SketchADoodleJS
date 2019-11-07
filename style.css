@@ -1,0 +1,46 @@
+html {
+    width:100%;
+    height:100%;
+    overflow: hidden;
+}
+
+body {
+    display: flex;
+    width:100%;
+    height:100%;
+    margin: 0px;
+}
+
+.main {
+    flex-grow: 1;
+    display:flex;
+    flex-direction: column;
+    padding:8px;
+}
+
+.main canvas {
+    background-color: lightgray;
+    border:solid 1px black;
+    cursor: crosshair;
+    flex-grow:1;
+}
+
+.main .bottom {
+    display:flex;
+    flex-direction: column;
+}
+
+.right {
+    width:200px;
+    display: flex;
+    flex-direction: column;
+}
+
+.right select {
+    width:100%;
+    flex-grow: 1;
+}
+
+.selected {
+    color:blue;
+}

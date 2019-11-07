@@ -1,0 +1,832 @@
+toolkit = (() => {
+
+    const THRESHOLDAPPROX = 2;
+
+    function distance(x1, y1, x2, y2) {
+        return Math.sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
+    }
+
+    function sqrDistance(x1, y1, x2, y2) {
+        return (x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2);
+    }
+
+    function computeQuadraticBaseValue(t, a, b, c) {
+        const mt = 1 - t;
+        return mt * mt * a + 2 * mt * t * b + t * t * c;
+    }
+
+    /**
+     * Returns the coordinate of a point at a specific t of a spécific curve inside a BSpline
+     * @param {float[]} points BSpline array
+     * @param {int} start the index of the Bézier curve inside the BSpline
+     * @param {float} t the t value for the curve
+     */
+    function getCoordsFor(points, start, t) {
+        return {
+            x: computeQuadraticBaseValue(t, points[start], points[start + 2], points[start + 4]),
+            y: computeQuadraticBaseValue(t, points[start + 1], points[start + 3], points[start + 5])
+        }
+    }
+
+    /**
+     * Return the intermediate control point for a quadratic Bézier curve that passes through the 3 points.
+     * @param {float} points0 
+     * @param {float} points1 
+     * @param {float} points2 
+     * @param {float} points3 
+     * @param {float} points4 
+     * @param {float} points5 
+     */
+    function getCtrlPointPassingBy(points0, points1, points2, points3, points4, points5) {
+        // http://stackoverflow.com/questions/6711707/draw-a-quadratic-bezier-curve-through-three-given-points
+        const distanceSP = distance(points0, points1, points2, points3);
+        const distanceEP = distance(points4, points5, points2, points3);
+        let ratio = (distanceSP - distanceEP) / (distanceSP + distanceEP);
+        ratio = 0.5 - (1.0 / 3.0) * ratio;
+        const ratioInv = 1 - ratio;
+        const term2x = points0 * ratio * ratio;
+        const term2y = points1 * ratio * ratio;
+        const term3x = points4 * ratioInv * ratioInv;
+        const term3y = points5 * ratioInv * ratioInv;
+        const term4 = 2 * ratio * ratioInv;
+        return { x: (points2 - term2x - term3x) / term4, y: (points3 - term2y - term3y) / term4 };
+    }
+
+    /**
+     * Transforms part of an array of segments into a Bézier curve. Returns null if the transformation is considered not good enough.
+     * @param {float[]} poly Array of segments
+     * @param {int} start Start index in the array to convert from
+     * @param {int} end End index in the array to convert to
+     */
+    function partToBezier(poly, start, end) {
+        let cand = [];
+        if (end - start < 6) { // line segment => colinear bezier control points
+            return [
+                poly[start], poly[start + 1],
+                (poly[start] + poly[end - 2]) / 2, (poly[start + 1] + poly[end - 1]) / 2,
+                poly[end - 2], poly[end - 1]
+            ];
+        } else if ((end - start) % 4 == 2) {
+            // odd number of points ; we'll use the middle one to infer a control point
+            const mid = (end - (start + 2)) / 2 + start;
+            const p = getCtrlPointPassingBy(poly[start], poly[start + 1], poly[mid], poly[mid + 1], poly[end - 2], poly[end - 1]);
+            cand = [poly[start], poly[start + 1], p.x, p.y, poly[end - 2], poly[end - 1]];
+            if (end - start < 8) return cand; // don't validate, assume it's always right
+        } else {
+            // even number of points; we'll use the middle of the two points in the middle
+            const mid = (end - (start + 2)) / 2 + start - 1;
+            const p = getCtrlPointPassingBy(poly[start], poly[start + 1], (poly[mid] + poly[mid + 2]) / 2, (poly[mid + 1] + poly[mid + 3]) / 2, poly[end - 2], poly[end - 1]);
+            cand = [poly[start], poly[start + 1], p.x, p.y, poly[end - 2], poly[end - 1]];
+        }
+        let wholedist = 0;
+        for (let i = start; i < end - 2; i += 2) {
+            wholedist += distance(poly[i], poly[i + 1], poly[i + 2], poly[i + 3]);
+        }
+        let curdist = 0;
+        for (let i = start + 2; i < end - 2; i += 2) {
+            curdist += distance(poly[i - 2], poly[i - 1], poly[i], poly[i + 1]);
+            const ratio = curdist / wholedist;
+            const p = getCoordsFor(cand, 0, ratio);
+            const diff = distance(p.x, p.y, poly[i], poly[i + 1]);
+            if (diff > 2) return null;
+        }
+        return cand;
+    }
+
+    /**
+     * Transform an array of segments into a BSpline
+     * @param {float[]} poly An array of segments of line
+     */
+    function segmentsToBSpline(poly) {
+        let ret = [poly[0], poly[1]];
+        let cur = 0;
+        while (cur < poly.length - 2) {
+            let end = Math.min(cur + 6, poly.length);
+            let last = partToBezier(poly, cur, end); // this one always succeed
+            while (end + 2 < poly.length) {
+                let candidate = partToBezier(poly, cur, end + 2);
+                if (candidate == null) break;
+                last = candidate;
+                end += 2;
+            }
+            // end points to the end of the curve ; last contains the bezier part
+            for (let i = 2; i < last.length; i++) {
+                ret.push(last[i]);
+            }
+            cur = end - 2;
+        }
+        return ret;
+    }
+
+    /**
+     * Transform a BSpline into an array of segments
+     * @param {float[]} curve An array that represents a BSpline
+     * @param {int} segments The number of segments of line each curve is to be approximated into
+     */
+    function bSplineToSegments(curve, segments) {
+        let ret = [bspline[curve + 0], bspline[curve + 1]];
+        let wholedist = 0;
+        for (let i = 0; i < curve.length - 2; i += 2) {
+            wholedist += distance(bspline[curve + i], bspline[curve + i + 1], bspline[curve + i + 2], bspline[curve + i + 3]);
+        }
+        let curdist = 0;
+        let part = 1;
+        let threshold = wholedist * part / segments;
+        for (let i = 0; i < curve.length - 2; i += 4) {
+            const length = distance(bspline[curve + i + 2], bspline[curve + i + 3], bspline[curve + i], bspline[curve + i + 1]) + distance(bspline[curve + i + 2], bspline[curve + i + 3], bspline[curve + i + 4], bspline[curve + i + 5]);
+            while (curdist + length >= threshold) {
+                const ratio = (threshold - curdist) / length;
+                const p = getCoordsFor(curve, i, ratio);
+                ret.push(p.x);
+                ret.push(p.y);
+                part++;
+                threshold = wholedist * part / segments;
+            }
+            curdist += length;
+        }
+        return ret;
+    }
+
+    /**
+     * Progressively draw a BSpline to feeding points.
+     */
+    function startBSpline(x, y) {
+        let bspline = [];
+        let segments = [x, y];
+        function addBSpline(candidate) {
+            if (bspline.length == 0) {
+                bspline.push.apply(bspline, candidate);
+            } else {
+                bspline.push(candidate[2], candidate[3], candidate[4], candidate[5]);
+            }
+        }
+        return {
+            feedPoint(x, y) {
+                segments.push(x, y);
+                if (segments.length < 8) return;
+                let candidate = partToBezier(segments, 0, segments.length);
+                if (candidate == null) {
+                    addBSpline(partToBezier(segments, 0, segments.length - 2));
+                    segments.splice(0, segments.length - 4);
+                }
+            },
+            getBSpline() {
+                return bspline;
+            },
+            getSegments() {
+                return segments;
+            },
+            finish() {
+                addBSpline(partToBezier(segments, 0, segments.length));
+                return { type: "bspline", data: bspline };
+            }
+        }
+    }
+
+    function approximateBSplineBySegments(bspline, offset, errors) {
+        let fal = [];
+        let precision = 0.5;
+        let segs = 2;
+        errors = errors * errors;
+        while (precision > 0.1) {
+            let pt = getCoordsFor(bspline, offset, precision);
+            let tgt = getCoordsFor(bspline, offset, precision * 2);
+            let ref = { x: (tgt.x - bspline[0]) * precision + bspline[0], y: (tgt.y - bspline[1]) * precision + bspline[1] };
+            if (sqrDistance(pt.x, pt.y, ref.x, ref.y) < errors) {
+                break;
+            }
+            segs *= 2;
+            precision = precision / 2.0;
+        }
+        for (let i = 0; i < segs; i++) {
+            let pt = getCoordsFor(bspline, offset, precision * i);
+            fal.push(pt.x, pt.y);
+        }
+        fal.push(bspline[offset + 4]);
+        fal.push(bspline[offset + 5]);
+        return fal;
+    }
+
+    function getClosestPointToLine(x, y, line) {
+        // http://paulbourke.net/geometry/pointline/
+        let u = ((x - line[0]) * (line[2] - line[0]) + (y - line[1])
+            * (line[3] - line[1]))
+            / sqrDistance(line[2], line[3], line[0], line[1]);
+        return {
+            x: line[0] + u * (line[2] - line[0]),
+            y: line[1] + u * (line[3] - line[1]), t: u
+        };
+    }
+
+
+    function getClosestPointToSegment(x, y, line) {
+        if (line[0] > line[2]) { // reorders
+            let s = line[2];
+            line[2] = line[0];
+            line[0] = s;
+        }
+        if (line[1] > line[3]) {
+            let s = line[3];
+            line[3] = line[1];
+            line[1] = s;
+        }
+        let candidate = getClosestPointToLine(x, y, line);
+        if (candidate.t > 1.0) {
+            return { x: line[2], y: line[3], t: 1.0 };
+        } else if (candidate.t < 0.0) {
+            return { x: line[0], y: line[1], t: 0.0 };
+        } else {
+            return candidate;
+        }
+    }
+
+    function getClosestPointToSegments(x, y, segments) {
+        let len = 0;
+        for (let i = 0; i < segments.length - 2; i += 2) {
+            len += distance(segments[i], segments[i + 1], segments[i + 2], segments[i + 3]);
+        }
+        let bestdist = Number.MAX_VALUE;
+        let best = { x: segments[0], y: segments[1], t: 0 };
+        let t = 0.0;
+        for (let i = 0; i < segments.length - 2; i += 2) {
+            let candidate = getClosestPointToSegment(x, y, [segments[i], segments[i + 1], segments[i + 2], segments[i + 3]]);
+            let canddist = distance(x, y, candidate.x, candidate.y);
+            if (canddist < bestdist) {
+                bestdist = canddist;
+                best = { x: candidate.x, y: candidate.y };
+                best.t = t + candidate.t * distance(segments[i], segments[i + 1], segments[i + 2], segments[i + 3]) / len;
+            }
+            t += t + distance(segments[i], segments[i + 1], segments[i + 2], segments[i + 3]) / len;
+        }
+        return best;
+    }
+
+    function assertCache(drawing) {
+        if (!("cache" in drawing)) {
+            drawing.cache = [];
+            for (let i = 0; i < drawing.data.length - 2; i += 4) {
+                drawing.cache.push(approximateBSplineBySegments(drawing.data, i, 1.0))
+            }
+        }
+    }
+
+    function getClosestPointToBSpline(x, y, drawing) {
+        assertCache(drawing);
+        let square_dist = Number.MAX_VALUE;
+        let cx = drawing.data[0];
+        let cy = drawing.data[1];
+        let n = 0, t = 0;
+        for (let i = 0; i < drawing.cache.length; i++) {
+            let pt = getClosestPointToSegments(x, y, drawing.cache[i]);
+            let dist = sqrDistance(x, y, pt.x, pt.y);
+            if (dist < square_dist) {
+                square_dist = dist;
+                n = i;
+                t = pt.t;
+                cx = pt.x;
+                cy = pt.y;
+            }
+        }
+        return {
+            x: cx,
+            y: cy,
+            n: n,
+            t: t
+        }
+    }
+
+    function distanceWithBSpline(x, y, drawing) {
+        let pt = getClosestPointToBSpline(x, y, drawing);
+        return distance(x, y, pt.x, pt.y);
+    }
+
+    function distanceWith(x, y, drawing) {
+        switch (drawing.type) {
+            case "bspline":
+                return distanceWithBSpline(x, y, drawing);
+            case "compound":
+                let min = Number.MAX_VALUE;
+                for (let i = 0; i < drawing.data.length; i++) {
+                    min = Math.min(min, distanceWith(x, y, drawing.data[i]));
+                    if (min == 0) return min;
+                }
+                return min;
+            case "closedbspline":
+                return closedbspline(x, y, drawing);
+        }
+        return Number.MAX_VALUE;
+    }
+
+    function movePoints(dx, dy, points) {
+        for (let i = 0; i < points.length; i += 2) {
+            points[i] += dx;
+            points[i + 1] += dy;
+        }
+    }
+
+    function move(dx, dy, drawing) {
+        delete drawing.cache;
+        switch (drawing.type) {
+            case "closedbspline":
+            case "bspline":
+                movePoints(dx,dy,drawing.data);
+                break;
+            case "compound":
+                for (let i = 0; i < drawing.data.length; i++) {
+                    move(dx, dy, drawing.data[i]);
+                }
+                break;
+        }
+    }
+
+    function scalePoints(scale, points) {
+        for (let i = 0; i < points.length; i++) {
+            points[i] *= scale;
+        }
+    }
+
+    function scale(scale, drawing) {
+        delete drawing.cache;
+        switch (drawing.type) {
+            case "closedbspline":
+            case "bspline":
+                scalePoints(scale, drawing.data);
+                break;
+            case "compound":
+                for (let i = 0; i < drawing.data.length; i++) {
+                    scale(scale, drawing.data[i]);
+                }
+                break;
+        }
+    }
+
+    function angle(x1, y1, x2, y2, x3, y3) {
+
+        let a = sqrDistance(x1, y1, x2, y2);
+        let b = sqrDistance(x3, y3, x2, y2);
+        let c = sqrDistance(x1, y1, x3, y3);
+
+        let angle = (Math.acos((a + b - c) / (2 * Math.sqrt(a) * Math.sqrt(b))));
+
+        // figure out the quadrant
+
+        if ((x1 - x2) * (y3 - y2) - (y1 - y2) * (x3 - x2) < 0) {
+            angle = (Math.PI - angle);
+        }
+        let sign = Math.sin(angle) > 0; // this is a very ugly fix, I cannot figure out why proper math does not work
+        if ((sign & y3 < y1) || (!sign && y3 > y1))
+            angle += Math.PI;
+
+        return angle;
+    }
+
+    function angleAt0(dx, dy) {
+        return Math.atan2(-dy, -dx) - Math.PI;
+    }
+
+    function rotatePoints(angle, points) {
+        let cos = Math.cos(angle);
+        let sin = Math.sin(angle);
+        for (let i = 0; i < points.length / 2; i++) {
+            let x = points[i * 2];
+            let y = points[i * 2 + 1];
+            points[i * 2] = x * cos - y * sin;
+            points[i * 2 + 1] = x * sin + y * cos;
+        }
+    }
+
+    function rotate(angle, drawing) {
+        delete drawing.cache;
+        switch (drawing.type) {
+            case "closedbspline":
+            case "bspline":
+                rotatePoints(angle, drawing.data);
+                break;
+            case "compound":
+                for (let i = 0; i < drawing.data.length; i++) {
+                    rotate(angle, drawing.data[i]);
+                }
+                break;
+        }
+    }
+
+    function lineToRectangle(x1, y1, x2, y2) {
+        return [x1, y1, x1, y2, x2, y2, x2, y1];
+    }
+
+    function arePointsInRectangle(rect, points) {
+        points = [...points];
+        let dx = -rect[0];
+        let dy = -rect[1];
+        movePoints(rect, dx, dy);
+        movePoints(points, dx, dy);
+        let angle = -(Math.atan2(-rect[3], -rect[2]) - Math.PI);
+        rotatePoints(rect, angle);
+        rotatePoints(points, angle);
+        for (let i = 0; i < points.length / 2; i++) {
+            if (!(points[i * 2] >= rect[0] && points[i * 2] <= rect[4]
+                && points[i * 2 + 1] >= rect[1] && points[i * 2 + 1] <= rect[5])) return false;
+        }
+        return true;
+    }
+
+    function isPointInApproxHVRectangle(rect, x, y) {
+        let minx, miny, maxx, maxy;
+        if (rect[0] < rect[2]) {
+            minx = rect[0] - THRESHOLDAPPROX;
+            maxx = rect[2] + THRESHOLDAPPROX;
+        } else {
+            minx = rect[2] - THRESHOLDAPPROX;
+            maxx = rect[0] + THRESHOLDAPPROX;
+        }
+        if (rect[1] < rect[3]) {
+            miny = rect[1] - THRESHOLDAPPROX;
+            maxy = rect[3] + THRESHOLDAPPROX;
+        } else {
+            miny = rect[3] - THRESHOLDAPPROX;
+            maxy = rect[1] + THRESHOLDAPPROX;
+        }
+
+        return (x >= minx && x <= maxx && y >= miny && y <= maxy);
+    }
+
+    function isPointInHVRectangle(rect, x, y) {
+        let minx, miny, maxx, maxy;
+        if (rect[0] < rect[2]) {
+            minx = rect[0];
+            maxx = rect[2];
+        } else {
+            minx = rect[2];
+            maxx = rect[0];
+        }
+        if (rect[1] < rect[3]) {
+            miny = rect[1];
+            maxy = rect[3];
+        } else {
+            miny = rect[3];
+            maxy = rect[1];
+        }
+
+        return (x >= minx && x <= maxx && y >= miny && y <= maxy);
+    }
+
+    function solveQuadratic(c, b, a, res) {
+        let roots = 0;
+        if (a == 0.0) {
+            // The quadratic parabola has degenerated to a line.
+            if (b == 0.0) {
+                // The line has degenerated to a constant.
+                return -1;
+            }
+            res[roots++] = -c / b;
+        } else {
+            // From Numerical Recipes, 5.6, Quadratic and Cubic Equations
+            let d = b * b - 4.0 * a * c;
+            if (d < 0.0) {
+                // If d < 0.0, then there are no roots
+                return 0;
+            }
+            d = Math.sqrt(d);
+            // For accuracy, calculate one root using:
+            // (-b +/- d) / 2a
+            // and the other using:
+            // 2c / (-b +/- d)
+            // Choose the sign of the +/- so that b+d gets larger in magnitude
+            if (b < 0.0) {
+                d = -d;
+            }
+            let q = (b + d) / -2.0;
+            // We already tested a for being 0 above
+            res[roots++] = q / a;
+            if (q != 0.0) {
+                res[roots++] = c / q;
+            }
+        }
+        return roots;
+    }
+
+    function intersectCurveSegment(curve, offset, segment0, segment1, segment2, segment3) {
+        let rect = [segment0, segment1, segment2, segment3];
+        if (rect[0] > rect[2]) {
+            let temp = rect[2];
+            rect[2] = rect[0];
+            rect[0] = temp;
+        }
+        if (rect[1] > rect[3]) {
+            let temp = rect[3];
+            rect[3] = rect[1];
+            rect[1] = temp;
+        }
+        let angle = angleAt0(segment2 - segment0, segment3 - segment1);
+        let tcurve = [curve[offset], curve[offset + 1], curve[offset + 2], curve[offset + 3], curve[offset + 4], curve[offset + 5]];
+        movePoints(-segment0, -segment1, tcurve);
+        rotatePoints(-angle, tcurve);
+
+        // now we can find t for which y(t)=0
+        // if t is between 0.0 and 1.0 then we have a solution
+        // y(t) = (1-t)*(1-t)P0+2(1-t)tP1+t*tP2
+
+        // = P0-tP0-tP0+t�P0+2tP1-2t�P1+t�P2
+        // = t�(P0-2P1+P2)+t(-2P0+2P1)+P0
+        let res = [];
+
+        let sol = solveQuadratic(tcurve[1], -2 * tcurve[1] + 2 * tcurve[3],
+            (tcurve[1] - 2 * tcurve[3] + tcurve[5]), res);
+        if (sol <= 0)
+            return [];
+
+        let ret = [];
+        for (let i = 0; i < sol; i++) {
+            if (res[i] >= 0.0 && res[i] <= 1.0) { // part of the curve
+                let c = getCoordsFor(curve, offset, res[i]);
+                if (isPointInApproxHVRectangle(rect, c.x, c.y)) {
+                    // also part of the segment
+                    ret.push(c.x);
+                    ret.push(c.y);
+                    ret.push(res[i]);
+                }
+            }
+        }
+
+        return ret;
+    }
+
+    function intersectsLineLine(line1x1, line1y1, line1x2, line1y2, line2x1, line2y1, line2x2, line2y2) {
+
+        let denominator = 1.0 * (line1x1 - line1x2) * (line2y1 - line2y2)
+            - (line1y1 - line1y2) * (line2x1 - line2x2);
+
+        // If the lines are parallel, there is no real 'intersection',
+        // and if they are colinear, the intersection is an entire line,
+        // rather than a point.
+        if (denominator == 0) {
+            return null;
+        }
+
+        let nx, ny;
+        if (line1x1 == line1x2) {
+            nx = line1x1;
+        } else if (line2x1 == line2x2) {
+            nx = line2x1;
+        } else {
+            nx = (((1.0 * line1x1 * line1y2 - line1y1 * line1x2)
+                * (line2x1 - line2x2) - (line1x1 - line1x2)
+                * (line2x1 * line2y2 - line2y1 * line2x2)) / denominator);
+        }
+
+        if (line1y1 == line1y2) {
+            ny = line1y1;
+        } else if (line2y1 == line2y2) {
+            ny = line2y1;
+        } else {
+            ny = (((1.0 * line1x1 * line1y2 - line1y1 * line1x2)
+                * (line2y1 - line2y2) - (line1y1 - line1y2)
+                * (line2x1 * line2y2 - line2y1 * line2x2)) / denominator);
+        }
+
+        // if denominator isn't zero, there is an intersection, and it's a single point.
+        return [nx, ny];
+    }
+
+    function intersectsSegmentSegment(s1x1, s1y1, s1x2, s1y2, s2x1, s2y1, s2x2, s2y2) {
+        if (sqrDistance(s1x1, s1y1, s2x1, s1y1) < 0.1) return [s1x1, s1y1];
+        if (sqrDistance(s1x2, s1y2, s2x2, s1y2) < 0.1) return [s1x2, s1y2];
+        if (sqrDistance(s1x1, s1y1, s2x1, s2y1) < 0.1) return [s1x1, s1y1];
+        if (sqrDistance(s1x2, s1y2, s2x2, s2y2) < 0.1) return [s1x2, s1y2];
+
+        let candidate = intersectsLineLine(s1x1, s1y1, s1x2, s1y2, s2x1, s2y1, s2x2, s2y2);
+        if (candidate != null && candidate.length == 2
+            && isPointInHVRectangle([s1x1, s1y1, s1x2, s1y2], candidate[0], candidate[1]) && isPointInHVRectangle([s2x1, s2y1, s2x2, s2y2], candidate[0], candidate[1]))
+            return candidate;
+        return null;
+    }
+
+    function intersectsHVRectangles(r1, r2) {
+        function reorder(r) {
+            if (r[0] > r[2]) {
+                let t = r[0];
+                r[0] = r[2];
+                r[2] = t;
+            }
+            if (r[1] > r[3]) {
+                let t = r[1];
+                r[1] = r[3];
+                r[3] = t;
+            }
+        }
+        r1 = [...r1];
+        r2 = [...r2];
+        reorder(r1);
+        reorder(r2);
+        // false if r1 is completely on the left of r2
+        if (r1[2] < r2[0])
+            return false;
+        // false if r1 is completely on the right of r2
+        if (r1[0] > r2[2])
+            return false;
+        // false if r1 is completely on top of r2
+        if (r1[3] < r2[1])
+            return false;
+        // false if r1 is completely on bottom of r2
+        if (r1[1] > r2[3])
+            return false;
+        return true;
+    }
+
+    function getBoundingHVRectangle(points, offset, len) {
+        let minx = Number.MAX_VALUE;
+        let miny = Number.MAX_VALUE;
+        let maxx = -Number.MAX_VALUE;
+        let maxy = -Number.MAX_VALUE;
+        for (let i = 0; i < len / 2; i++) {
+            if (points[offset + i * 2] < minx)
+                minx = points[offset + i * 2];
+            if (points[offset + i * 2] > maxx)
+                maxx = points[offset + i * 2];
+            if (points[offset + i * 2 + 1] < miny)
+                miny = points[offset + i * 2 + 1];
+            if (points[offset + i * 2 + 1] > maxy)
+                maxy = points[offset + i * 2 + 1];
+        }
+        return [minx, miny, maxx, maxy];
+    }
+
+    function splitLeft(points, offset, t) {
+        let p4 = [(1 - t) * points[0+offset] + t * points[2+offset],
+        (1 - t) * points[1+offset] + t * points[3+offset]];
+        let p5 = [(1 - t) * points[2+offset] + t * points[4+offset],
+        (1 - t) * points[3+offset] + t * points[5+offset]];
+        let p6 = [(1 - t) * p4[0] + t * p5[0], (1 - t) * p4[1] + t * p5[1]];
+
+        return [points[0], points[1], p4[0], p4[1], p6[0], p6[1]];
+    }
+
+    function splitLeftRight(points, offset, t) {
+        let p4 = [(1 - t) * points[offset] + t * points[offset + 2],
+        (1 - t) * points[offset + 1] + t * points[offset + 3]];
+        let p5 = [(1 - t) * points[offset + 2] + t * points[offset + 4],
+        (1 - t) * points[offset + 3] + t * points[offset + 5]];
+        let p6 = [(1 - t) * p4[0] + t * p5[0], (1 - t) * p4[1] + t * p5[1]];
+
+        return [points[offset], points[offset + 1], p4[0], p4[1],
+        p6[0], p6[1], p5[0], p5[1], points[offset + 4],
+        points[offset + 5]];
+    }
+
+    function cutPathSegment(x1, y1, x2, y2, bspline) {
+        // for all curves in points,
+        // if the curve does not intersect the line, accumulate the curve in
+        // temp
+        // if the curve intersects the line :
+        // split the curve,
+        // accumulate the left part in temp
+        // add temp to return
+        // clear temp and accumulate right part into it
+        // add temp to return
+        let ret = [];
+        let current = [];
+        current.push(bspline[0]);
+        current.push(bspline[1]);
+        for (let curve = 0; curve < bspline.length - 2; curve += 4) {
+            // segment ?
+/*            if (Math.abs((bspline[1 + curve] - bspline[3 + curve]) * (bspline[curve] - bspline[curve + 4]) - (bspline[curve + 1] - bspline[curve + 5]) * (bspline[curve] - bspline[curve + 2])) < 0.01) {
+                let split = intersectsSegmentSegment(bspline[curve + 0], bspline[curve + 1], bspline[curve + 4], bspline[curve + 5], x1, y1, x2, y2);
+                if (split == null) {
+                    for (let i = 2; i < 6; i++) {
+                        current.push(bspline[curve + i]);
+                    }
+                } else {
+                    current.push((bspline[curve + 0] + split[0]) / 2.0);
+                    current.push((bspline[curve + 1] + split[1]) / 2.0);
+                    current.push(split[0]);
+                    current.push(split[1]);
+                    ret.push(current);
+                    current = [];
+                    current.push(split[0]);
+                    current.push(split[1]);
+                    current.push((bspline[curve + 4] + split[0]) / 2.0);
+                    current.push((bspline[curve + 5] + split[1]) / 2.0);
+                    current.push(bspline[curve + 4]);
+                    current.push(bspline[curve + 5]);
+                }
+                continue;
+            }*/
+            // quickly check if curve has a chance of intersecting the line or
+            // not
+            if (!intersectsHVRectangles([x1, y1, x2, y2], getBoundingHVRectangle(bspline,curve,6))) {
+                for (let i = 2; i < 6; i++) {
+                    current.push(bspline[curve + i]);
+                }
+                continue;
+            } else {
+                let intersects = intersectCurveSegment(bspline, curve, x1, y1, x2, y2);
+                if (intersects.length == 0) {
+                    // appends curve to current
+                    for (let i = 2; i < 6; i++) {
+                        current.push(bspline[curve + i]);
+                    }
+                } else if (intersects.length == 3) {
+                    // one intersection
+                    let leftright = splitLeftRight(bspline, curve, intersects[2]);
+                    current.push(leftright[2]);
+                    current.push(leftright[3]);
+                    current.push(leftright[4]);
+                    current.push(leftright[5]);
+                    ret.push(current);
+                    current = [];
+                    current.push(leftright[4]);
+                    current.push(leftright[5]);
+                    current.push(leftright[6]);
+                    current.push(leftright[7]);
+                    current.push(leftright[8]);
+                    current.push(leftright[9]);
+                } else {
+                    // two intersections
+                    let leftright = splitLeft(bspline, curve, intersects[2]);
+                    current.push(leftright[2]);
+                    current.push(leftright[3]);
+                    current.push(leftright[4]);
+                    current.push(leftright[5]);
+                    ret.push(current);
+                    let right = splitLeftRight(leftright, 0,
+                        (intersects[5] - intersects[2])
+                        / (1.0 - intersects[2]));
+                    ret.push(right.slice(0, 6));
+                    current = [];
+                    current.push(right[4]);
+                    current.push(right[5]);
+                    current.push(right[6]);
+                    current.push(right[7]);
+                    current.push(right[8]);
+                    current.push(right[9]);
+                }
+            }
+        }
+        for (let i = bspline.length - (bspline.length - 2) % 4; i < bspline.length; i++) {
+            current.push(bspline[i]);
+        }
+        if (current.let != 2)
+            ret.push(current);
+        return ret;
+    }
+
+
+    function cutBSPline(x1, y1, x2, y2, drawing) {
+        let ret = cutPathSegment(x1, y1, x2, y2, drawing.data);
+        switch (drawing.type) {
+            case "closedbspline":
+                    for(let i=0; i<ret.length; i++) {
+                        ret[i].push((ret[i][0]+ret[i][ret[i].length-2])/2);
+                        ret[i].push((ret[i][1]+ret[i][ret[i].length-1])/2);
+                        ret[i].push(ret[i][0]);
+                        ret[i].push(ret[i][1]);
+                        ret[i]={type:"closedbspline",data:ret[i]};
+                    }
+                    break;
+            case "bspline":
+                for(let i=0; i<ret.length; i++) {
+                    ret[i]={type:"bspline",data:ret[i]};
+                }
+                break;
+        }
+        return ret;
+    }
+
+    function cut(x1, y1, x2, y2, drawing) {
+        let ret = [];
+        function inner(drawing) {
+            switch (drawing.type) {
+                case "closedbspline":
+                case "bspline":
+                    ret.push.apply(ret, cutBSPline(x1, y1, x2, y2, drawing));
+                    break;
+                case "compound":
+                    /*                    for (let i = 0; i < drawing.data.length; i++) {
+                                            inner(drawing.data[i]);
+                                        }*/
+                    //TODO
+                    break;
+            }
+        }
+        inner(drawing);
+        return ret;
+    }
+
+    return {
+        distance,
+        distanceWith,
+        getCoordsFor,
+        segmentsToBSpline,
+        bSplineToSegments,
+        startBSpline,
+        getClosestPointToLine,
+        getClosestPointToSegment,
+        getClosestPointToSegments,
+        getClosestPointToBSpline,
+        move,
+        scale,
+        angle,
+        rotate,
+        cut
+    }
+})();
