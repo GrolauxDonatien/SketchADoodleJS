@@ -799,7 +799,7 @@ toolkit = (() => {
                 return insideSegmentClosedBSpline(x1,y1,x2,y2, drawing.data);
             case "compound":
                 for (let i = 0; i < drawing.data.length; i++) {
-                    if (intersects(drawing.data[i])) return true;
+                    if (intersects(x1, y1, x2, y2, drawing.data[i])) return true;
                 }
         }
         return false;

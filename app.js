@@ -366,7 +366,11 @@ app = (() => {
                     while(i<drawing.length) {
                         if (toolkit.intersects(x1,y1,x2,y2,drawing[i])) {
                             lastidx=i;
-                            compound.push(drawing[i]);
+                            if (drawing[i].type=="compound") {
+                                compound.push.apply(compound,drawing[i].data);
+                            } else {
+                                compound.push(drawing[i]);
+                            }
                             drawing.splice(i,1);
                         } else {
                             i++;
