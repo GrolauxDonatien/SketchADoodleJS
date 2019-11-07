@@ -466,7 +466,7 @@ toolkit = (() => {
         return roots;
     }
 
-    function intersectbsplineSegment(bspline, offset, x1, y1, x2, y2) {
+    function intersectsCurveSegment(bspline, offset, x1, y1, x2, y2) {
         let rect = [x1, y1, x2, y2];
         if (rect[0] > rect[2]) {
             let temp = rect[2];
@@ -500,7 +500,7 @@ toolkit = (() => {
         for (let i = 0; i < sol; i++) {
             if (res[i] >= 0.0 && res[i] <= 1.0) { // part of the bspline
                 let c = getCoordsFor(bspline, offset, res[i]);
-                if (isPointInApproxHVRectangle(rect, c.x, c.y, THRESHOLDAPPROX)) {
+                if (isPointInHVRectangle(rect, c.x, c.y, THRESHOLDAPPROX)) {
                     // also part of the segment
                     ret.push(c.x);
                     ret.push(c.y);
@@ -680,7 +680,7 @@ toolkit = (() => {
                 }
                 continue;
             } else {
-                let intersects = intersectoffsetSegment(bspline, offset, x1, y1, x2, y2);
+                let intersects = intersectsCurveSegment(bspline, offset, x1, y1, x2, y2);
                 if (intersects.length == 0) {
                     // appends offset to current
                     for (let i = 2; i < 6; i++) {
