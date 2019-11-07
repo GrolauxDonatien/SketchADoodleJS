@@ -219,22 +219,22 @@ toolkit = (() => {
     }
 
 
-    function getClosestPointToSegment(x, y, line) {
-        if (line[0] > line[2]) { // reorders
-            let s = line[2];
-            line[2] = line[0];
-            line[0] = s;
+    function getClosestPointToSegment(x, y, segment) {
+        if (segment[0] > segment[2]) { // reorders
+            let s = segment[2];
+            segment[2] = segment[0];
+            segment[0] = s;
         }
-        if (line[1] > line[3]) {
-            let s = line[3];
-            line[3] = line[1];
-            line[1] = s;
+        if (segment[1] > segment[3]) {
+            let s = segment[3];
+            segment[3] = segment[1];
+            segment[1] = s;
         }
-        let candidate = getClosestPointToLine(x, y, line);
+        let candidate = getClosestPointToLine(x, y, segment);
         if (candidate.t > 1.0) {
-            return { x: line[2], y: line[3], t: 1.0 };
+            return { x: segment[2], y: segment[3], t: 1.0 };
         } else if (candidate.t < 0.0) {
-            return { x: line[0], y: line[1], t: 0.0 };
+            return { x: segment[0], y: segment[1], t: 0.0 };
         } else {
             return candidate;
         }
@@ -410,47 +410,8 @@ toolkit = (() => {
         }
     }
 
-    function lineToRectangle(x1, y1, x2, y2) {
-        return [x1, y1, x1, y2, x2, y2, x2, y1];
-    }
-
-    function arePointsInRectangle(rect, points) {
-        points = [...points];
-        let dx = -rect[0];
-        let dy = -rect[1];
-        movePoints(rect, dx, dy);
-        movePoints(points, dx, dy);
-        let angle = -(Math.atan2(-rect[3], -rect[2]) - Math.PI);
-        rotatePoints(rect, angle);
-        rotatePoints(points, angle);
-        for (let i = 0; i < points.length / 2; i++) {
-            if (!(points[i * 2] >= rect[0] && points[i * 2] <= rect[4]
-                && points[i * 2 + 1] >= rect[1] && points[i * 2 + 1] <= rect[5])) return false;
-        }
-        return true;
-    }
-
-    function isPointInApproxHVRectangle(rect, x, y) {
-        let minx, miny, maxx, maxy;
-        if (rect[0] < rect[2]) {
-            minx = rect[0] - THRESHOLDAPPROX;
-            maxx = rect[2] + THRESHOLDAPPROX;
-        } else {
-            minx = rect[2] - THRESHOLDAPPROX;
-            maxx = rect[0] + THRESHOLDAPPROX;
-        }
-        if (rect[1] < rect[3]) {
-            miny = rect[1] - THRESHOLDAPPROX;
-            maxy = rect[3] + THRESHOLDAPPROX;
-        } else {
-            miny = rect[3] - THRESHOLDAPPROX;
-            maxy = rect[1] + THRESHOLDAPPROX;
-        }
-
-        return (x >= minx && x <= maxx && y >= miny && y <= maxy);
-    }
-
-    function isPointInHVRectangle(rect, x, y) {
+    function isPointInHVRectangle(rect, x, y, delta) {
+        if (delta==undefined) delta=0;
         let minx, miny, maxx, maxy;
         if (rect[0] < rect[2]) {
             minx = rect[0];
@@ -505,8 +466,8 @@ toolkit = (() => {
         return roots;
     }
 
-    function intersectCurveSegment(curve, offset, segment0, segment1, segment2, segment3) {
-        let rect = [segment0, segment1, segment2, segment3];
+    function intersectbsplineSegment(bspline, offset, x1, y1, x2, y2) {
+        let rect = [x1, y1, x2, y2];
         if (rect[0] > rect[2]) {
             let temp = rect[2];
             rect[2] = rect[0];
@@ -517,10 +478,10 @@ toolkit = (() => {
             rect[3] = rect[1];
             rect[1] = temp;
         }
-        let angle = angleAt0(segment2 - segment0, segment3 - segment1);
-        let tcurve = [curve[offset], curve[offset + 1], curve[offset + 2], curve[offset + 3], curve[offset + 4], curve[offset + 5]];
-        movePoints(-segment0, -segment1, tcurve);
-        rotatePoints(-angle, tcurve);
+        let angle = angleAt0(x2 - x1, y2 - y1);
+        let curve = [bspline[offset], bspline[offset + 1], bspline[offset + 2], bspline[offset + 3], bspline[offset + 4], bspline[offset + 5]];
+        movePoints(-x1, -y1, curve);
+        rotatePoints(-angle, curve);
 
         // now we can find t for which y(t)=0
         // if t is between 0.0 and 1.0 then we have a solution
@@ -530,16 +491,16 @@ toolkit = (() => {
         // = t�(P0-2P1+P2)+t(-2P0+2P1)+P0
         let res = [];
 
-        let sol = solveQuadratic(tcurve[1], -2 * tcurve[1] + 2 * tcurve[3],
-            (tcurve[1] - 2 * tcurve[3] + tcurve[5]), res);
-        if (sol <= 0)
+        let sol = solveQuadratic(curve[1], -2 * curve[1] + 2 * curve[3], (curve[1] - 2 * curve[3] + curve[5]), res);
+        if (sol <= 0) {
             return [];
+        }
 
         let ret = [];
         for (let i = 0; i < sol; i++) {
-            if (res[i] >= 0.0 && res[i] <= 1.0) { // part of the curve
-                let c = getCoordsFor(curve, offset, res[i]);
-                if (isPointInApproxHVRectangle(rect, c.x, c.y)) {
+            if (res[i] >= 0.0 && res[i] <= 1.0) { // part of the bspline
+                let c = getCoordsFor(bspline, offset, res[i]);
+                if (isPointInApproxHVRectangle(rect, c.x, c.y, THRESHOLDAPPROX)) {
                     // also part of the segment
                     ret.push(c.x);
                     ret.push(c.y);
@@ -551,41 +512,41 @@ toolkit = (() => {
         return ret;
     }
 
-    function intersectsLineLine(line1x1, line1y1, line1x2, line1y2, line2x1, line2y1, line2x2, line2y2) {
+    function intersectsLineLine(l1x1, l1y1, l1x2, l1y2, l2x1, l2y1, l2x2, l2y2) {
 
-        let denominator = 1.0 * (line1x1 - line1x2) * (line2y1 - line2y2)
-            - (line1y1 - line1y2) * (line2x1 - line2x2);
+        let denominator = 1.0 * (l1x1 - l1x2) * (l2y1 - l2y2)
+            - (l1y1 - l1y2) * (l2x1 - l2x2);
 
-        // If the lines are parallel, there is no real 'intersection',
-        // and if they are colinear, the intersection is an entire line,
+        // If the ls are parallel, there is no real 'intersection',
+        // and if they are colar, the intersection is an entire l,
         // rather than a point.
         if (denominator == 0) {
             return null;
         }
 
-        let nx, ny;
-        if (line1x1 == line1x2) {
-            nx = line1x1;
-        } else if (line2x1 == line2x2) {
-            nx = line2x1;
+        let x, y;
+        if (l1x1 == l1x2) {
+            x = l1x1;
+        } else if (l2x1 == l2x2) {
+            x = l2x1;
         } else {
-            nx = (((1.0 * line1x1 * line1y2 - line1y1 * line1x2)
-                * (line2x1 - line2x2) - (line1x1 - line1x2)
-                * (line2x1 * line2y2 - line2y1 * line2x2)) / denominator);
+            x = (((1.0 * l1x1 * l1y2 - l1y1 * l1x2)
+                * (l2x1 - l2x2) - (l1x1 - l1x2)
+                * (l2x1 * l2y2 - l2y1 * l2x2)) / denominator);
         }
 
-        if (line1y1 == line1y2) {
-            ny = line1y1;
-        } else if (line2y1 == line2y2) {
-            ny = line2y1;
+        if (l1y1 == l1y2) {
+            y = l1y1;
+        } else if (l2y1 == l2y2) {
+            y = l2y1;
         } else {
-            ny = (((1.0 * line1x1 * line1y2 - line1y1 * line1x2)
-                * (line2y1 - line2y2) - (line1y1 - line1y2)
-                * (line2x1 * line2y2 - line2y1 * line2x2)) / denominator);
+            y = (((1.0 * l1x1 * l1y2 - l1y1 * l1x2)
+                * (l2y1 - l2y2) - (l1y1 - l1y2)
+                * (l2x1 * l2y2 - l2y1 * l2x2)) / denominator);
         }
 
         // if denominator isn't zero, there is an intersection, and it's a single point.
-        return [nx, ny];
+        return [x, y];
     }
 
     function intersectsSegmentSegment(s1x1, s1y1, s1x2, s1y2, s2x1, s2y1, s2x2, s2y2) {
@@ -651,26 +612,26 @@ toolkit = (() => {
         return [minx, miny, maxx, maxy];
     }
 
-    function splitLeft(points, offset, t) {
-        let p4 = [(1 - t) * points[0+offset] + t * points[2+offset],
-        (1 - t) * points[1+offset] + t * points[3+offset]];
-        let p5 = [(1 - t) * points[2+offset] + t * points[4+offset],
-        (1 - t) * points[3+offset] + t * points[5+offset]];
+    function splitLeft(bspline, offset, t) {
+        let p4 = [(1 - t) * bspline[0+offset] + t * bspline[2+offset],
+        (1 - t) * bspline[1+offset] + t * bspline[3+offset]];
+        let p5 = [(1 - t) * bspline[2+offset] + t * bspline[4+offset],
+        (1 - t) * bspline[3+offset] + t * bspline[5+offset]];
         let p6 = [(1 - t) * p4[0] + t * p5[0], (1 - t) * p4[1] + t * p5[1]];
 
-        return [points[0], points[1], p4[0], p4[1], p6[0], p6[1]];
+        return [bspline[0], bspline[1], p4[0], p4[1], p6[0], p6[1]];
     }
 
-    function splitLeftRight(points, offset, t) {
-        let p4 = [(1 - t) * points[offset] + t * points[offset + 2],
-        (1 - t) * points[offset + 1] + t * points[offset + 3]];
-        let p5 = [(1 - t) * points[offset + 2] + t * points[offset + 4],
-        (1 - t) * points[offset + 3] + t * points[offset + 5]];
+    function splitLeftRight(bspline, offset, t) {
+        let p4 = [(1 - t) * bspline[offset] + t * bspline[offset + 2],
+        (1 - t) * bspline[offset + 1] + t * bspline[offset + 3]];
+        let p5 = [(1 - t) * bspline[offset + 2] + t * bspline[offset + 4],
+        (1 - t) * bspline[offset + 3] + t * bspline[offset + 5]];
         let p6 = [(1 - t) * p4[0] + t * p5[0], (1 - t) * p4[1] + t * p5[1]];
 
-        return [points[offset], points[offset + 1], p4[0], p4[1],
-        p6[0], p6[1], p5[0], p5[1], points[offset + 4],
-        points[offset + 5]];
+        return [bspline[offset], bspline[offset + 1], p4[0], p4[1],
+        p6[0], p6[1], p5[0], p5[1], bspline[offset + 4],
+        bspline[offset + 5]];
     }
 
     function cutPathSegment(x1, y1, x2, y2, bspline) {
@@ -687,47 +648,47 @@ toolkit = (() => {
         let current = [];
         current.push(bspline[0]);
         current.push(bspline[1]);
-        for (let curve = 0; curve < bspline.length - 2; curve += 4) {
+        for (let offset = 0; offset < bspline.length - 2; offset += 4) {
             // segment ?
-/*            if (Math.abs((bspline[1 + curve] - bspline[3 + curve]) * (bspline[curve] - bspline[curve + 4]) - (bspline[curve + 1] - bspline[curve + 5]) * (bspline[curve] - bspline[curve + 2])) < 0.01) {
-                let split = intersectsSegmentSegment(bspline[curve + 0], bspline[curve + 1], bspline[curve + 4], bspline[curve + 5], x1, y1, x2, y2);
+            if (Math.abs((bspline[1 + offset] - bspline[3 + offset]) * (bspline[offset] - bspline[offset + 4]) - (bspline[offset + 1] - bspline[offset + 5]) * (bspline[offset] - bspline[offset + 2])) < 0.01) {
+                let split = intersectsSegmentSegment(bspline[offset + 0], bspline[offset + 1], bspline[offset + 4], bspline[offset + 5], x1, y1, x2, y2);
                 if (split == null) {
                     for (let i = 2; i < 6; i++) {
-                        current.push(bspline[curve + i]);
+                        current.push(bspline[offset + i]);
                     }
                 } else {
-                    current.push((bspline[curve + 0] + split[0]) / 2.0);
-                    current.push((bspline[curve + 1] + split[1]) / 2.0);
+                    current.push((bspline[offset + 0] + split[0]) / 2.0);
+                    current.push((bspline[offset + 1] + split[1]) / 2.0);
                     current.push(split[0]);
                     current.push(split[1]);
                     ret.push(current);
                     current = [];
                     current.push(split[0]);
                     current.push(split[1]);
-                    current.push((bspline[curve + 4] + split[0]) / 2.0);
-                    current.push((bspline[curve + 5] + split[1]) / 2.0);
-                    current.push(bspline[curve + 4]);
-                    current.push(bspline[curve + 5]);
+                    current.push((bspline[offset + 4] + split[0]) / 2.0);
+                    current.push((bspline[offset + 5] + split[1]) / 2.0);
+                    current.push(bspline[offset + 4]);
+                    current.push(bspline[offset + 5]);
                 }
                 continue;
-            }*/
-            // quickly check if curve has a chance of intersecting the line or
+            }
+            // quickly check if offset has a chance of intersecting the line or
             // not
-            if (!intersectsHVRectangles([x1, y1, x2, y2], getBoundingHVRectangle(bspline,curve,6))) {
+            if (!intersectsHVRectangles([x1, y1, x2, y2], getBoundingHVRectangle(bspline,offset,6))) {
                 for (let i = 2; i < 6; i++) {
-                    current.push(bspline[curve + i]);
+                    current.push(bspline[offset + i]);
                 }
                 continue;
             } else {
-                let intersects = intersectCurveSegment(bspline, curve, x1, y1, x2, y2);
+                let intersects = intersectoffsetSegment(bspline, offset, x1, y1, x2, y2);
                 if (intersects.length == 0) {
-                    // appends curve to current
+                    // appends offset to current
                     for (let i = 2; i < 6; i++) {
-                        current.push(bspline[curve + i]);
+                        current.push(bspline[offset + i]);
                     }
                 } else if (intersects.length == 3) {
                     // one intersection
-                    let leftright = splitLeftRight(bspline, curve, intersects[2]);
+                    let leftright = splitLeftRight(bspline, offset, intersects[2]);
                     current.push(leftright[2]);
                     current.push(leftright[3]);
                     current.push(leftright[4]);
@@ -742,7 +703,7 @@ toolkit = (() => {
                     current.push(leftright[9]);
                 } else {
                     // two intersections
-                    let leftright = splitLeft(bspline, curve, intersects[2]);
+                    let leftright = splitLeft(bspline, offset, intersects[2]);
                     current.push(leftright[2]);
                     current.push(leftright[3]);
                     current.push(leftright[4]);
