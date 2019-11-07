@@ -144,6 +144,42 @@ app = (() => {
         document.getElementById("lines").setAttribute("class", "selected");
     });
 
+    document.getElementById("delete").addEventListener("click", () => {
+        function erase(x,y){
+            for (let i = drawing.length - 1; i >= 0; i--) {
+                let distance = toolkit.distanceWith(event.offsetX, event.offsetY, drawing[i]);
+                if (distance < 2) {
+                    drawing.splice(i,1);
+                    repaint();
+                    return;
+                }
+            }
+        }
+        let mode=false;
+        tool.deselect();
+        tool = {
+            mousedown(event) {
+                erase(event.offsetX, event.offsetY);
+                mode=true;
+                repaint();
+            },
+            mousemove(event) {
+                if (!mode) return;
+                erase(event.offsetX, event.offsetY);
+                repaint();
+            },
+            mouseup() {
+                mode=false;
+            },
+            draw() {},
+            deselect() {
+                document.getElementById("delete").removeAttribute("class");
+            },
+        }
+        struct = null;
+        document.getElementById("delete").setAttribute("class", "selected");
+    });
+
     document.getElementById("move").addEventListener("click", () => {
         tool.deselect();
         let x, y;
@@ -401,8 +437,42 @@ app = (() => {
         document.getElementById("glue").setAttribute("class", "selected");
     });
 
+    
+    document.getElementById("fill").addEventListener("click", () => {
+        tool.deselect();
+        let temp=null;
+        tool = {
+            mousedown(event) {
+                if (temp!=null) {
+                    temp.remove();
+                }
+                temp = document.createElement('canvas');
+                temp.width  = canvas.width;
+                temp.height = canvas.height;
+                temp.style="position:fixed; z-index=10000; top:0px; left:0px;";
+                canvas.parentNode.insertBefore(temp,canvas);
+                let result=toolkit.floodfill(event.offsetX,event.offsetY,drawing,temp.getContext("2d"));
+
+            },
+            mousemove(event) {
+            },
+            mouseup() {
+                if (temp!=null) {
+                    temp.remove();
+                    temp=null;
+                }
+            },
+            draw() {},
+            deselect() {
+                document.getElementById("fill").removeAttribute("class");
+            },
+        }
+        struct = null;
+        document.getElementById("fill").setAttribute("class", "selected");
+    });
+
     repaint();
-    document.getElementById("glue").dispatchEvent(new Event("click"));
+    document.getElementById("lines").dispatchEvent(new Event("click"));
     return { drawing };
 
 })();

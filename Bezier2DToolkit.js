@@ -339,22 +339,22 @@ toolkit = (() => {
         }
     }
 
-    function scalePoints(scale, points) {
+    function scalePoints(factor, points) {
         for (let i = 0; i < points.length; i++) {
-            points[i] *= scale;
+            points[i] *= factor;
         }
     }
 
-    function scale(scale, drawing) {
+    function scale(factor, drawing) {
         delete drawing.cache;
         switch (drawing.type) {
             case "closedbspline":
             case "bspline":
-                scalePoints(scale, drawing.data);
+                scalePoints(factor, drawing.data);
                 break;
             case "compound":
                 for (let i = 0; i < drawing.data.length; i++) {
-                    scale(scale, drawing.data[i]);
+                    scale(factor, drawing.data[i]);
                 }
                 break;
         }
@@ -776,7 +776,7 @@ toolkit = (() => {
             let above = [];
             let below = [];
             let both = [];
-    
+
             for (let n = 0; n < all.length; n++) {
                 let si = all[n];
                 let ab = false;
@@ -786,7 +786,7 @@ toolkit = (() => {
                         let x = points[i];
                         let y = points[i + 1];
                         let value = (x2 - x1) * (y - y1) - (x - x1) * (y2 - y1);
-                        if (value == 0) continue; // don't decide anything, the other points will determine the position
+                        if (Math.abs(value) < 0.1) continue; // don't decide anything, the other points will determine the position
                         if (value < 0) {
                             if (ab) continue;
                             ab = true;
@@ -810,7 +810,7 @@ toolkit = (() => {
                     both.push(si);
                 }
             }
-    
+
             return { above, below, both };
         }
 
@@ -826,9 +826,14 @@ toolkit = (() => {
                     temp.push.apply(temp, cut(x1, y1, x2, y2, drawing.data[i]));
                 }
                 let groups = sortSlice(temp, x1, y1, x2, y2);
-                ret.push({type:"compound", data:groups.above});
-                ret.push({type:"compound", data:groups.below});
-                ret.push({type:"compound", data:groups.both});
+                function push(drawings) {
+                    if (drawings.length == 0) return; // empty set
+                    if (drawings.length == 1) ret.push(drawings[0]); // do not compound a single drawing
+                    ret.push({ type: "compound", data: drawings });
+                }
+                push(groups.above);
+                push(groups.below);
+                push(groups.both);
                 break;
         }
         return ret;
@@ -849,6 +854,48 @@ toolkit = (() => {
         return false;
     }
 
+    function floodfillArray(x,y,array,width,height) {
+        let borders=[];
+
+        return borders;
+    }
+
+    function floodfill(x, y, repository, context) {
+        let ret = {};
+        let map = [];
+        // keep only bsplines points, respecting the order in repository
+        for (let i = 0; i < repository.length; i++) {
+            switch (repository[i].type) {
+                case "closedbspline":
+                case "bspline":
+                    map.push(repository[i].data);
+                    break;
+                case "compound":
+                    for (let j = 0; j < repository[i].data.length; j++) {
+                        map.push(repository[i].data[j].data);
+                    }
+            }
+        }
+        context.fillStyle="#FFFFFF";
+        context.fillRect(0, 0, context.canvas.width,context.canvas.height);
+        for (let bs = 0; bs < map.length; bs++) {
+            context.beginPath();
+            for (let i = 0; i < map.length; i++) {
+                let bspline = map[bs];
+                context.moveTo(bspline[0], bspline[1]);
+                for (let i = 2; i < bspline.length; i += 4) {
+                    context.quadraticCurveTo(bspline[i], bspline[i + 1], bspline[i + 2], bspline[i + 3]);
+                }
+                context.strokeStyle = "#"+(i+1).toString(16);
+                context.stroke();
+            }
+        }
+        let imgData=context.getImageData(0,0,context.canvas.width,context.canvas.height);
+        ret.borders=floodfillArray(x,y,imgData,context.canvas.width,context.canvas.height);
+        context.putImageData(imgData,0,0);
+        return ret;
+    }
+
     return {
         distance,
         distanceWith,
@@ -865,6 +912,7 @@ toolkit = (() => {
         angle,
         rotate,
         cut,
-        intersects
+        intersects,
+        floodfill
     }
 })();
