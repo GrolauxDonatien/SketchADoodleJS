@@ -771,32 +771,76 @@ toolkit = (() => {
     }
 
     function cut(x1, y1, x2, y2, drawing) {
-        let ret = [];
-        function inner(drawing) {
-            switch (drawing.type) {
-                case "closedbspline":
-                case "bspline":
-                    ret.push.apply(ret, cutBSPline(x1, y1, x2, y2, drawing));
-                    break;
-                case "compound":
-                    /*                    for (let i = 0; i < drawing.data.length; i++) {
-                                            inner(drawing.data[i]);
-                                        }*/
-                    //TODO
-                    break;
+        function sortSlice(all, x1, y1, x2, y2) {
+
+            let above = [];
+            let below = [];
+            let both = [];
+    
+            for (let n = 0; n < all.length; n++) {
+                let si = all[n];
+                let ab = false;
+                let be = false;
+                function check(points) {
+                    for (let i = 0; i < points.length; i += 2) {
+                        let x = points[i];
+                        let y = points[i + 1];
+                        let value = (x2 - x1) * (y - y1) - (x - x1) * (y2 - y1);
+                        if (value == 0) continue; // don't decide anything, the other points will determine the position
+                        if (value < 0) {
+                            if (ab) continue;
+                            ab = true;
+                            if (be) break;
+                        } else if (value > 0) {
+                            if (be) continue;
+                            be = true;
+                            if (ab) break;
+                        } else {
+                            ab = true; be = true;
+                            break;
+                        }
+                    }
+                }
+                check(si.data);
+                if (ab && !be) {
+                    above.push(si);
+                } else if (!ab && be) {
+                    below.push(si);
+                } else {
+                    both.push(si);
+                }
             }
+    
+            return { above, below, both };
         }
-        inner(drawing);
+
+        let ret = [];
+        switch (drawing.type) {
+            case "closedbspline":
+            case "bspline":
+                ret.push.apply(ret, cutBSPline(x1, y1, x2, y2, drawing));
+                break;
+            case "compound":
+                let temp = [];
+                for (let i = 0; i < drawing.data.length; i++) {
+                    temp.push.apply(temp, cut(x1, y1, x2, y2, drawing.data[i]));
+                }
+                let groups = sortSlice(temp, x1, y1, x2, y2);
+                ret.push({type:"compound", data:groups.above});
+                ret.push({type:"compound", data:groups.below});
+                ret.push({type:"compound", data:groups.both});
+                break;
+        }
         return ret;
     }
 
     function intersects(x1, y1, x2, y2, drawing) {
         switch (drawing.type) {
             case "bspline":
-                return intersectsBSplineSegment(x1,y1,x2,y2, drawing.data);
+                return intersectsBSplineSegment(x1, y1, x2, y2, drawing.data);
             case "closedbspline":
-                if (intersectsBSplineSegment(x1,y1,x2,y2, drawing.data)) return true;
-                return insideSegmentClosedBSpline(x1,y1,x2,y2, drawing.data);
+                if (intersectsBSplineSegment(x1, y1, x2, y2, drawing.data)) return true;
+                return insideSegmentClosedBSpline(x1, y1, x2, y2, drawing.data);
             case "compound":
                 for (let i = 0; i < drawing.data.length; i++) {
                     if (intersects(x1, y1, x2, y2, drawing.data[i])) return true;
