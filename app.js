@@ -440,39 +440,38 @@ app = (() => {
     
     document.getElementById("fill").addEventListener("click", () => {
         tool.deselect();
-        let temp=null;
+        struct=null;
         tool = {
             mousedown(event) {
-                if (temp!=null) {
-                    temp.remove();
+                if (struct!=null) {
+                    struct.remove();
                 }
-                temp = document.createElement('canvas');
-                temp.width  = canvas.width;
-                temp.height = canvas.height;
-                temp.style="position:fixed; z-index=10000; top:0px; left:0px;";
-                canvas.parentNode.insertBefore(temp,canvas);
-                let result=toolkit.floodfill(event.offsetX,event.offsetY,drawing,temp.getContext("2d"));
+                struct = document.createElement('canvas');
+                struct.style="shape-rendering:pixelated;image-rendering:pixelated";
+                struct.width  = canvas.width;
+                struct.height = canvas.height;
+                struct.style="position:fixed; z-index=10000; top:0px; left:0px;";
+                canvas.parentNode.insertBefore(struct,canvas);
+                let result=toolkit.floodfill(event.offsetX,event.offsetY,drawing,struct.getContext("2d"));
 
             },
             mousemove(event) {
             },
             mouseup() {
-                if (temp!=null) {
-                    temp.remove();
-                    temp=null;
-                }
             },
             draw() {},
             deselect() {
+                if (struct!=null) {
+                    struct.remove();
+                }
                 document.getElementById("fill").removeAttribute("class");
             },
         }
-        struct = null;
         document.getElementById("fill").setAttribute("class", "selected");
     });
 
     repaint();
-    document.getElementById("lines").dispatchEvent(new Event("click"));
+    document.getElementById("fill").dispatchEvent(new Event("click"));
     return { drawing };
 
 })();
