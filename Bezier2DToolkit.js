@@ -646,6 +646,7 @@ toolkit = (() => {
         // add temp to return
         let ret = [];
         let current = [];
+        let cut=false;
         current.push(bspline[0]);
         current.push(bspline[1]);
         for (let offset = 0; offset < bspline.length - 2; offset += 4) {
@@ -657,6 +658,7 @@ toolkit = (() => {
                         current.push(bspline[offset + i]);
                     }
                 } else {
+                    cut=true;
                     current.push((bspline[offset + 0] + split[0]) / 2.0);
                     current.push((bspline[offset + 1] + split[1]) / 2.0);
                     current.push(split[0]);
@@ -687,6 +689,7 @@ toolkit = (() => {
                         current.push(bspline[offset + i]);
                     }
                 } else if (intersects.length == 3) {
+                    cut=true;
                     // one intersection
                     let leftright = splitLeftRight(bspline, offset, intersects[2]);
                     current.push(leftright[2]);
@@ -702,6 +705,7 @@ toolkit = (() => {
                     current.push(leftright[8]);
                     current.push(leftright[9]);
                 } else {
+                    cut=true;
                     // two intersections
                     let leftright = splitLeft(bspline, offset, intersects[2]);
                     current.push(leftright[2]);
@@ -728,7 +732,7 @@ toolkit = (() => {
         }
         if (current.let != 2)
             ret.push(current);
-        return ret;
+        return cut?ret:null;
     }
 
     function intersectsBSplineSegment(x1, y1, x2, y2, bspline) {
@@ -751,6 +755,7 @@ toolkit = (() => {
 
     function cutBSPline(x1, y1, x2, y2, drawing) {
         let ret = cutBSplineSegment(x1, y1, x2, y2, drawing.data);
+        if (ret==null) return null;
         switch (drawing.type) {
             case "closedbspline":
                 for (let i = 0; i < ret.length; i++) {
@@ -818,13 +823,23 @@ toolkit = (() => {
         switch (drawing.type) {
             case "closedbspline":
             case "bspline":
-                ret.push.apply(ret, cutBSPline(x1, y1, x2, y2, drawing));
+                // FixMe : better detection and management when nothing is cut
+                let o=cutBSPline(x1, y1, x2, y2, drawing);
+                if (o!=null) ret.push.apply(ret, o);
                 break;
             case "compound":
                 let temp = [];
+                let isCut=false;
                 for (let i = 0; i < drawing.data.length; i++) {
-                    temp.push.apply(temp, cut(x1, y1, x2, y2, drawing.data[i]));
+                    let o=cut(x1, y1, x2, y2, drawing.data[i]);
+                    if (o.length>0) {
+                        temp.push.apply(temp, o);
+                        isCut=true;
+                    } else {
+                        temp.push(drawing.data[i]);
+                    }
                 }
+                if (!isCut) return [];
                 let groups = sortSlice(temp, x1, y1, x2, y2);
                 function push(drawings) {
                     if (drawings.length == 0) return; // empty set
@@ -856,7 +871,7 @@ toolkit = (() => {
 
     function floodfillArray(x,y,array,width,height) {
         let borders=[];
-
+        
         return borders;
     }
 
