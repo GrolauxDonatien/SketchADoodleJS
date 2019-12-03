@@ -26,6 +26,105 @@ function plotLine(x0, y0, x1, y1)
    }
 }
 
+function plotLineBad2(x0, y0, x1, y1) {
+   var dx = Math.abs(x1 - x0);
+   var dy = Math.abs(y1 - y0);
+   var sx = (x0 < x1) ? 1 : -1;
+   var sy = (y0 < y1) ? 1 : -1;
+   var err = dx - dy;
+
+   while(true) {
+      setPixel(x0, y0); // Do what you need to for this
+
+      if ((x0 === x1) && (y0 === y1)) break;
+      var e2 = 2*err;
+      if (e2 > -dy) { err -= dy; x0  += sx; }
+      if (e2 < dx) { err += dx; y0  += sy; }
+   }
+}
+
+function plotLineVar2(x1, y1, x2, y2) {
+
+   // Iterators, counters required by algorithm
+   let x, y, dx, dy, dx1, dy1, px, py, xe, ye, i;
+
+   // Calculate line deltas
+   dx = x2 - x1;
+   dy = y2 - y1;
+
+   // Create a positive copy of deltas (makes iterating easier)
+   dx1 = Math.abs(dx);
+   dy1 = Math.abs(dy);
+
+   // Calculate error intervals for both axis
+   px = 2 * dy1 - dx1;
+   py = 2 * dx1 - dy1;
+
+   // The line is X-axis dominant
+   if (dy1 <= dx1) {
+
+       // Line is drawn left to right
+       if (dx >= 0) {
+           x = x1; y = y1; xe = x2;
+       } else { // Line is drawn right to left (swap ends)
+           x = x2; y = y2; xe = x1;
+       }
+
+       setPixel(x, y); // Draw first pixel
+
+       // Rasterize the line
+       for (i = 0; x < xe; i++) {
+           x = x + 1;
+
+           // Deal with octants...
+           if (px < 0) {
+               px = px + 2 * dy1;
+           } else {
+               if ((dx < 0 && dy < 0) || (dx > 0 && dy > 0)) {
+                   y = y + 1;
+               } else {
+                   y = y - 1;
+               }
+               px = px + 2 * (dy1 - dx1);
+           }
+
+           // Draw pixel from line span at currently rasterized position
+           setPixel(x, y);
+       }
+
+   } else { // The line is Y-axis dominant
+
+       // Line is drawn bottom to top
+       if (dy >= 0) {
+           x = x1; y = y1; ye = y2;
+       } else { // Line is drawn top to bottom
+           x = x2; y = y2; ye = y1;
+       }
+
+       setPixel(x, y); // Draw first pixel
+
+       // Rasterize the line
+       for (i = 0; y < ye; i++) {
+           y = y + 1;
+
+           // Deal with octants...
+           if (py <= 0) {
+               py = py + 2 * dx1;
+           } else {
+               if ((dx < 0 && dy<0) || (dx > 0 && dy > 0)) {
+                   x = x + 1;
+               } else {
+                   x = x - 1;
+               }
+               py = py + 2 * (dx1 - dy1);
+           }
+
+           // Draw pixel from line span at currently rasterized position
+           setPixel(x, y);
+       }
+   }
+}
+
 function plotEllipse(xm, ym, a, b)
 {
    var x = -a, y = 0;           /* II. quadrant from bottom left to top right */

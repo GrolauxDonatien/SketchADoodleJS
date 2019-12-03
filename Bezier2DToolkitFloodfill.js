@@ -1,3 +1,6 @@
+let setPixel = function () { };
+let setPixelAA = function(x,y) {setPixel(x,y);};
+
 (function () {
 
     function floodfillArray(x, y, array, width, height) {
@@ -66,8 +69,7 @@
                 return borders;*/
     }
 
-    function floodfill(x, y, repository, context) {
-        let ret = {};
+    function floodfill(x, y, repository, width, height) {
         let map = [];
         // keep only bsplines points, respecting the order in repository
         for (let i = 0; i < repository.length; i++) {
@@ -82,27 +84,19 @@
                     }
             }
         }
-        context.fillStyle = "#FFFFFF";
-        context.fillRect(0, 0, context.canvas.width, context.canvas.height);
+        pixels = [];
         for (let bs = 0; bs < map.length; bs++) {
-            context.beginPath();
-            for (let i = 0; i < map.length; i++) {
-                let bspline = map[bs];
-                context.strokeStyle = "rgba(" + ((i + 1) >>> 16) + "," + (((i + 1) >>> 8) % 256) + "," + ((i + 1) % 256) + ",255)";
-                context.moveTo(bspline[0], bspline[1]);
-                for (let j = 2; j < bspline.length; j += 4) {
-                    context.quadraticCurveTo(bspline[j], bspline[j + 1], bspline[j + 2], bspline[j + 3]);
-                }
-                context.stroke();
+            setPixel = function (x, y) {
+                pixels[y * width + x] = bs + 1;
+            }
+            let bspline = map[bs];
+            for (let j = 0; j < bspline.length-4; j += 4) {
+                plotQuadBezier(bspline[j], bspline[j + 1], bspline[j + 2], bspline[j + 3], bspline[j + 4], bspline[j + 5]);
             }
         }
-        let imgData = context.getImageData(0, 0, context.canvas.width, context.canvas.height);
-        ret.borders = floodfillArray(x, y, imgData, context.canvas.width, context.canvas.height);
-        context.putImageData(imgData, 0, 0);
-        return ret;
+        let borders=floodfillArray(x, y, pixels, width, height);
+        return { pixels, borders };
     }
-
-
 
     toolkit.floodfill = floodfill;
 

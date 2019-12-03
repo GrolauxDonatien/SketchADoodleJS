@@ -2,7 +2,8 @@ app = (() => {
     const canvas = document.getElementById("mycanvas");
     const context = canvas.getContext("2d");
 //    const drawing = [{"type":"bspline","data":[198,802,203.07312252964428,801.9999999999999,215,802,227.84706565805118,799.0880299962079,245,799,275.3561753684402,796.3790481455987,317,783,411.2792144191626,758.8392956339726,503,717,631.7719000808652,675.0621059860835,769,651,852.161604235279,642.4482558457844,897,631,922.6915116109416,626.1300619760848,945,618,951,614.5,957,611]}];
-    const drawing=[{type:"bspline",data:[100,100,150,150,200,200]}];
+//    const drawing=[{type:"bspline",data:[100,100,150,150,200,200,150,250,100,300]}];
+    const drawing=[{"type":"bspline","data":[100,100,150,150,200,200,150,250,100,300]},{"type":"bspline","data":[95,161,96.10843121198988,158.19727324834344,102,150,113.09212657738361,135.26014147651813,135,124,173.5090018830844,109.63286836328679,208,100,226.5930223072122,96.96828810743662,246,98]},{"type":"bspline","data":[139,187,143.0618412367782,185.66040239044878,148,182,185.40637763802636,162.22529130847118,207,134,220.53701389906814,111.3609210904433,219,87,220.3113640520554,72.69574696372649,220,64]}];
     let struct;
     let noTool = {
         mousedown() { },
@@ -447,13 +448,31 @@ app = (() => {
                     struct.remove();
                 }
                 struct = document.createElement('canvas');
-                struct.style="shape-rendering:pixelated;image-rendering:pixelated";
                 struct.width  = canvas.width;
                 struct.height = canvas.height;
                 struct.style="position:fixed; z-index=10000; top:0px; left:0px;";
                 canvas.parentNode.insertBefore(struct,canvas);
-                let result=toolkit.floodfill(event.offsetX,event.offsetY,drawing,struct.getContext("2d"));
-
+                let context=struct.getContext("2d");
+                let result=toolkit.floodfill(event.offsetX,event.offsetY,drawing,canvas.width,canvas.height);
+                let opx=null;
+                for(let x=0; x<canvas.width; x++) {
+                    for(let y=0; y<canvas.height; y++) {
+                        let px=result.pixels[y*canvas.width+x];
+                        if (px && px!=0) {
+                            if (opx!=px) {
+                                opx=px;
+                                let hex="00000"+px.toString(16);
+                                hex=hex.substring(hex.length-6);
+                                context.fillStyle="#"+hex;    
+                            }
+                            context.fillRect(x,y,1,1);
+                        }
+                    }
+                }
+                struct.addEventListener("click", function() {
+                    struct.remove();
+                    struct=null;
+                });
             },
             mousemove(event) {
             },
