@@ -622,6 +622,17 @@ toolkit = (() => {
         return [bspline[0], bspline[1], p4[0], p4[1], p6[0], p6[1]];
     }
 
+    function splitRight(bspline, offset,t) {
+        let p4 = [ (1 - t) * bspline[0 + offset] + t * bspline[2 + offset],
+                (1 - t) * bspline[1 + offset] + t * bspline[3 + offset] ];
+        let p5 = [ (1 - t) * bspline[2 + offset] + t * bspline[4 + offset],
+                (1 - t) * bspline[3 + offset] + t * bspline[5 + offset] ];
+        let p6 = [ (1 - t) * p4[0] + t * p5[0], (1 - t) * p4[1] + t * p5[1] ];
+
+        return [ p6[0], p6[1], p5[0], p5[1], points[4], points[5] ];
+    }
+
+
     function splitLeftRight(bspline, offset, t) {
         let p4 = [(1 - t) * bspline[offset] + t * bspline[offset + 2],
         (1 - t) * bspline[offset + 1] + t * bspline[offset + 3]];
@@ -869,12 +880,59 @@ toolkit = (() => {
         return false;
     }
 
+    function curveFromBSpline(bspline,offset) {
+        let idx=offset*4;
+        return [bspline[idx],bspline[idx+1],bspline[idx+2],bspline[idx+3],bspline[idx+4],bspline[idx+5]];
+    }
 
+    function intersectsCurveCurve(int newCurve, Bezier2Approx other, int lastCurve, float x, float y, float[] ret) {
+        Integer offset1Start=curveToApprox.get(newCurve);
+        Integer offset2Start=other.curveToApprox.get(lastCurve);
+        Integer offset1End=curveToApprox.get(newCurve+1);
+        Integer offset2End=other.curveToApprox.get(lastCurve+1);
+        if (offset1End==null) offset1End=points.length/2-1;
+        if (offset2End==null) offset2End=other.points.length/2-1;
+        float[] cand=null;
+        for(int i=offset1Start; i<offset1End; i++) {
+            for(int j=offset2End-1; j>=offset2Start; j--) {
+                float[] inter=BasicGeometry.intersectsSegmentSegment(new float[]{points[i*2],points[i*2+1],points[i*2+2],points[i*2+3]},
+                        new float[]{other.points[j*2],other.points[j*2+1],other.points[j*2+2],other.points[j*2+3]});
+                if (inter!=null) {
+                    if (cand==null || BasicGeometry.sqrDistance(inter[0],inter[1],x,y)<BasicGeometry.sqrDistance(cand[0],cand[1],x,y)) {
+                        if (cand==null) cand=new float[4];
+                        cand[0]=inter[0];
+                        cand[1]=inter[1];
+                        Float endi=segTOrigin.get(i+1);
+                        if (endi==null || endi==0.0f) endi=1.0f;
+                        float spani=endi-segTOrigin.get(i);
+                        Float endj=other.segTOrigin.get(j+1);
+                        if (endj==null || endj==0.0f) endj=1.0f;
+                        float spanj=endj-other.segTOrigin.get(j);
+                        cand[2]=segTOrigin.get(i)+((cand[0]-points[i*2])/(points[i*2+2]-points[i*2]))*spani;
+                        cand[3]=other.segTOrigin.get(j)+((cand[0]-other.points[j*2])/(other.points[j*2+2]-other.points[j*2]))*spanj;
+                    }
+                }
+            }
+        }
+        if (cand==null) {
+            return false;
+        } else {
+            ret[0]=cand[0];
+            ret[1]=cand[1];
+            ret[2]=cand[2];
+            ret[3]=cand[3];
+        }
+        return true;
+    }
 
     return {
         distance,
+        sqrDistance,
         distanceWith,
         getCoordsFor,
+        splitLeft,
+        splitRight,
+        splitLeftRight,
         segmentsToBSpline,
         bSplineToSegments,
         startBSpline,
@@ -885,8 +943,11 @@ toolkit = (() => {
         move,
         scale,
         angle,
+        angleAt0,
         rotate,
         cut,
+        curveFromBSpline,
+        intersectsCurveCurve,
         intersects
     }
 })();
