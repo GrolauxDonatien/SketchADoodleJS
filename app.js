@@ -469,6 +469,7 @@ app = (() => {
                         }
                     }
                 }
+                console.info(result);
                 struct.addEventListener("click", function() {
                     struct.remove();
                     struct=null;
