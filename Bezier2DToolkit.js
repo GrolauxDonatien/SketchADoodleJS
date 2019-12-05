@@ -262,6 +262,7 @@ toolkit = (() => {
     }
 
     function assertCache(drawing) {
+        if (drawing===undefined) debugger;
         if (!("cache" in drawing)) {
             drawing.cache = [];
             for (let i = 0; i < drawing.data.length - 2; i += 4) {
@@ -619,7 +620,7 @@ toolkit = (() => {
         (1 - t) * bspline[3 + offset] + t * bspline[5 + offset]];
         let p6 = [(1 - t) * p4[0] + t * p5[0], (1 - t) * p4[1] + t * p5[1]];
 
-        return [bspline[0], bspline[1], p4[0], p4[1], p6[0], p6[1]];
+        return [bspline[0+offset], bspline[1+offset], p4[0], p4[1], p6[0], p6[1]];
     }
 
     function splitRight(bspline, offset,t) {
@@ -629,7 +630,7 @@ toolkit = (() => {
                 (1 - t) * bspline[3 + offset] + t * bspline[5 + offset] ];
         let p6 = [ (1 - t) * p4[0] + t * p5[0], (1 - t) * p4[1] + t * p5[1] ];
 
-        return [ p6[0], p6[1], p5[0], p5[1], points[4], points[5] ];
+        return [ p6[0], p6[1], p5[0], p5[1], bspline[4+offset], bspline[5+offset] ];
     }
 
 
@@ -885,44 +886,33 @@ toolkit = (() => {
         return [bspline[idx],bspline[idx+1],bspline[idx+2],bspline[idx+3],bspline[idx+4],bspline[idx+5]];
     }
 
-    function intersectsCurveCurve(int newCurve, Bezier2Approx other, int lastCurve, float x, float y, float[] ret) {
-        Integer offset1Start=curveToApprox.get(newCurve);
-        Integer offset2Start=other.curveToApprox.get(lastCurve);
-        Integer offset1End=curveToApprox.get(newCurve+1);
-        Integer offset2End=other.curveToApprox.get(lastCurve+1);
-        if (offset1End==null) offset1End=points.length/2-1;
-        if (offset2End==null) offset2End=other.points.length/2-1;
-        float[] cand=null;
-        for(int i=offset1Start; i<offset1End; i++) {
-            for(int j=offset2End-1; j>=offset2Start; j--) {
-                float[] inter=BasicGeometry.intersectsSegmentSegment(new float[]{points[i*2],points[i*2+1],points[i*2+2],points[i*2+3]},
-                        new float[]{other.points[j*2],other.points[j*2+1],other.points[j*2+2],other.points[j*2+3]});
+    function intersectsCurveCurve(curve1, curve1Offset, curve2, curve2Offset, x, y) {
+        let s1=approximateBSplineBySegments(curve1,curve1Offset,1.0);
+        let s2=approximateBSplineBySegments(curve2,curve2Offset,1.0);
+        let tl1=0.0;
+        let tl2=0.0;
+        for(let i=0; i<s1.length-2; i+=2) {
+            tl1+=distance(s1[i],s1[i+1],s1[i+2],s1[i+3]);
+        }
+        for(let i=0; i<s2.length-2; i+=2) {
+            tl2+=distance(s2[i],s2[i+1],s2[i+2],s2[i+3]);
+        }
+        let l1=0.0;
+        let l2=0.0;
+        let cand=null;
+        for(let i=0; i<s1.length-2; i+=2) {
+            for(let j=0; j<s2.length-2; j+=2) {
+                let inter=intersectsSegmentSegment(s1[i],s1[i+1],s1[i+2],s1[i+3],s2[j],s2[j+1],s2[j+2],s2[j+3]);
                 if (inter!=null) {
-                    if (cand==null || BasicGeometry.sqrDistance(inter[0],inter[1],x,y)<BasicGeometry.sqrDistance(cand[0],cand[1],x,y)) {
-                        if (cand==null) cand=new float[4];
-                        cand[0]=inter[0];
-                        cand[1]=inter[1];
-                        Float endi=segTOrigin.get(i+1);
-                        if (endi==null || endi==0.0f) endi=1.0f;
-                        float spani=endi-segTOrigin.get(i);
-                        Float endj=other.segTOrigin.get(j+1);
-                        if (endj==null || endj==0.0f) endj=1.0f;
-                        float spanj=endj-other.segTOrigin.get(j);
-                        cand[2]=segTOrigin.get(i)+((cand[0]-points[i*2])/(points[i*2+2]-points[i*2]))*spani;
-                        cand[3]=other.segTOrigin.get(j)+((cand[0]-other.points[j*2])/(other.points[j*2+2]-other.points[j*2]))*spanj;
+                    if (cand==null || sqrDistance(inter[0],inter[1],x,y)<sqrDistance(cand[0],cand[1],x,y)) {
+                        cand=[inter[0],inter[1], (l1+distance(inter[0],inter[1],s1[i],s1[i+1])/tl1),(l2+distance(inter[0],inter[1],s2[j],s1[j+1])/tl2)];
                     }
                 }
+                l2+=distance(s2[j],s2[j+1],s2[j+2],s2[j+3]);
             }
+            l1+=distance(s1[i],s1[i+1],s1[i+2],s1[i+3]);
         }
-        if (cand==null) {
-            return false;
-        } else {
-            ret[0]=cand[0];
-            ret[1]=cand[1];
-            ret[2]=cand[2];
-            ret[3]=cand[3];
-        }
-        return true;
+        return cand;
     }
 
     return {

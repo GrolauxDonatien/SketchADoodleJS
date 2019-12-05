@@ -4,6 +4,7 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
 (function () {
 
     const fillColor = 16777215;
+    const PI2=Math.PI/2;
 
     function floodfillArray(x, y, pixels, width, height) {
         let borders = [];
@@ -479,7 +480,7 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
         path.push(y);
     }
 
-    function createBezierCurves(tracks, paths, repository) {
+    function createBezierCurves(tracks, repository) {
         let currentPathN = -2;
         let startx = -1;
         let starty = -1;
@@ -497,19 +498,19 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
         let maxDist = 1.0;
         let ret = [];
 
-        for (let tracki = 0; i < tracki.length; i++) {
+        for (let tracki = 0; tracki < tracks.length; tracki++) {
             let pts = tracks[tracki];
             currentPathN = -2;
-            currentPath = null;
             let path = [];
             for (let i = 0; i < pts.length / 3; i++) {
                 let idx = i * 3;
-                let pathN = pts[idx + 2];
+                let pathN = pts[idx + 2]-1;
                 if (pathN != currentPathN) {
                     if (currentPathN != -2) {
                         let closest =  toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1],repository[pathN]);
                         let newCurve=closest.n;
-                        if (Bezier2Approx.getApprox(pathN).getIntersection(newCurve, Bezier2Approx.getApprox(currentPathN), lastCurve, closest.x, closest.y, closest2)) {
+                        closest2=toolkit.intersectsCurveCurve(repository[pathN].data,newCurve,repository[currentPathN].data,lastCurve, closest.x, closest.y);
+                        if (closest2!==null) {
                             pushPath(path, repository[pathN].data, startx, starty,
                                 startCurve, startt, closest2[0], closest2[1],
                                 lastCurve, closest2[3]);
@@ -526,7 +527,10 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
                                 lastCurve, closest.t);
                             closest3=tookit.getClosestPointToBSpline(closest.x,closest.y,repository[pathN]);
 
-                            path.add((closest.x + closest3.x) / 2, (closest.y + closest3.y) / 2, closest3.x, closest3.y);
+                            path.push((closest.x + closest3.x) / 2);
+                            path.push((closest.y + closest3.y) / 2);
+                            path.push(closest3.x);
+                            path.push(closest3.y);
                             startx = closest3.x;
                             starty = closest3.y;
                             startCurve = newCurve;
@@ -539,12 +543,12 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
                         currentPathN = pathN;
                     } else {
 
-                        currentPath = paths[pathN].getPath();
+                        closest=toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1],repository[pathN]);
 
-                        startCurve = Bezier2Approx.getApprox(pathN).getClosestPointOnPath(pts[idx], pts[idx + 1], closest);
-                        startx = closest[0];
-                        starty = closest[1];
-                        startt = closest[2];
+                        startCurve = closest.n;
+                        startx = closest.x;
+                        starty = closest.y;
+                        startt = closest.t;
                         lastx = startx;
                         lasty = starty;
                         lastCurve = startCurve;
@@ -556,16 +560,14 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
                 } else {
                     // first attempt to stay on this curve
 
-                    Bezier2Approx.getApprox(currentPathN).getClosestPointOnApprox(lastCurve, pts[idx], pts[idx + 1], closest);
+                    closest=toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1],{data:toolkit.curveFromBSpline(repository[pathN], lastCurve*4)});
 
-                    let d = toolkit.sqrDistance(closest[0], closest[1], pts[idx], pts[idx + 1]);
+                    let d = toolkit.sqrDistance(closest.x, closest.y, pts[idx], pts[idx + 1]);
                     let newCurve = lastCurve;
                     if (d > maxDist) {
                         // if too far away
-                        Bezier2Approx approx = Bezier2Approx.getApprox(currentPathN);
-                        int count = approx.getTotal();
-                        approx.getClosestPointOnApprox((lastCurve + count - 1) % count, pts[idx], pts[idx + 1], closestbef);
-                        approx.getClosestPointOnApprox((lastCurve + 1) % count, pts[idx], pts[idx + 1], closestaft);
+                        closestbef=tookit.getClosestPointToBSpline(pts[idx], pts[idx + 1], {data:toolkit.curveFromBSpline(repository[currentPathN], ((lastCurve + count - 1) % count)*4)})
+                        closestaft=tookit.getClosestPointToBSpline(pts[idx], pts[idx + 1], {data:toolkit.curveFromBSpline(repository[currentPathN], ((lastCurve + 1) % count)*4)})
                         let dbef = toolkit.sqrDistance(closestbef[0], closestbef[1], pts[idx], pts[idx + 1]);
                         let daft = toolkit.sqrDistance(closestaft[0], closestaft[1], pts[idx], pts[idx + 1]);
 
@@ -580,7 +582,7 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
                         }
 
                         if (d > maxDist) { // no match
-                            newCurve = Bezier2Approx.getApprox(currentPathN).getClosestPointOnPath(pts[idx], pts[idx + 1], closest);
+                            closest=toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1],repository[currentPathN]);
                             if (lastCurve == newCurve) { // still on same curve, maxDist should not have triggered, adapt it.
                                 maxDist = d;
                             }
@@ -600,9 +602,10 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
                             && startCurve <= lastCurve) {
                             jump = false;
                         } else {
+                            closest2=toolkit.intersectsCurveCurve(repository[pathN].data,newCurve,repository[currentPathN].data,lastCurve, closest.x, closest.y);
 
-                            if (Bezier2Approx.getApprox(currentPathN).getIntersection(newCurve, lastCurve, closest[0], closest[1], closest2)) {
-                                pushPath(path, currentPath, startx, starty,
+                            if (closest2!=null) {
+                                pushPath(path, repository[pathN].data, startx, starty,
                                     startCurve, startt, closest2[0], closest2[1],
                                     lastCurve, closest2[3]);
                                 startx = closest2[0];
@@ -611,48 +614,47 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
                                 startt = closest2[2];
                                 jump = false;
                             } else {
+                                closest2=tookit.getClosestPointToBSpline(pts[idx], pts[idx + 1], {data:toolkit.curveFromBSpline(repository[currentPathN], lastCurve*4)});
 
-                                Bezier2Approx.getApprox(currentPathN).getClosestPointOnApprox(lastCurve, closest[0], closest[1], closest2);
+                                pushPath(path, repository[currentPathN], startx, starty,
+                                    startCurve, startt, closest2.x, closest2.y,
+                                    lastCurve, closest2.t);
 
-                                pushPath(path, currentPath, startx, starty,
-                                    startCurve, startt, closest2[0], closest2[1],
-                                    lastCurve, closest2[2]);
+                                closest3=tookit.getClosestPointToBSpline(closest2.x, closest2.y, {data:toolkit.curveFromBSpline(repository[currentPathN], newCurve*4)});
 
-                                Bezier2Approx.getApprox(currentPathN).getClosestPointOnApprox(newCurve, closest2[0], closest2[1], closest3);
-
-                                path.push((closest2[0] + closest3[0]) / 2);
-                                path.push((closest2[1] + closest3[1]) / 2);
-                                path.push(closest3[0]);
-                                path.push(closest3[1]);
-                                startx = closest3[0];
-                                starty = closest3[1];
+                                path.push((closest2.x + closest3.x) / 2);
+                                path.push((closest2.y + closest3.y) / 2);
+                                path.push(closest3.x);
+                                path.push(closest3.y);
+                                startx = closest3.x;
+                                starty = closest3.y;
                                 startCurve = newCurve;
-                                startt = closest3[2];
+                                startt = closest3.t;
                                 jump = false;
                             }
                         }
                         if (jump) {
-                            pushPath(path, currentPath, startx, starty,
+                            pushPath(path, repository[currentPathN], startx, starty,
                                 startCurve, startt, lastx, lasty,
                                 lastCurve, lastt);
-                            startx = closest[0];
-                            starty = closest[1];
+                            startx = closest.x;
+                            starty = closest.y;
                             startCurve = newCurve;
-                            startt = closest[2];
+                            startt = closest.t;
                         }
                     }
-                    lastx = closest[0];
-                    lasty = closest[1];
+                    lastx = closest.x;
+                    lasty = closest.y;
                     lastCurve = newCurve;
-                    lastt = closest[2];
+                    lastt = closest.t;
                 }
             }
-            pushPath(path, currentPath, startx, starty, startCurve, startt,
+            pushPath(path, repository[currentPathN], startx, starty, startCurve, startt,
                 lastx, lasty, lastCurve, lastt);
 
-            join(path, paths[currentPathN].getWidth(), pts[0], pts[1]);
-            join(path, paths[currentPathN].getWidth(), path.get(0), path.get(1));
-            ret.add(path.toArray());
+            join(path, pts[0], pts[1]);
+            join(path, path[0], path[1]);
+            ret.push(path);
         }
         return ret;
     }
