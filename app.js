@@ -77,12 +77,15 @@ app = (() => {
         }
     }
 
-    function drawClosedBSpline(bspline) {
-        if (bspline != null && bspline.length > 0) {
+    function drawClosedBSpline(cbspline) {
+        if (cbspline != null && cbspline.length > 0) {
             context.beginPath();
-            context.moveTo(bspline[0], bspline[1]);
-            for (let i = 2; i < bspline.length; i += 4) {
-                context.quadraticCurveTo(bspline[i], bspline[i + 1], bspline[i + 2], bspline[i + 3]);
+            for(let b=0; b<cbspline.length; b++) {
+                let bspline=cbspline[b];
+                context.moveTo(bspline[0], bspline[1]);
+                for (let i = 2; i < bspline.length; i += 4) {
+                    context.quadraticCurveTo(bspline[i], bspline[i + 1], bspline[i + 2], bspline[i + 3]);
+                }
             }
             context.closePath();
             context.stroke();
@@ -444,7 +447,33 @@ app = (() => {
         struct=null;
         tool = {
             mousedown(event) {
-                if (struct!=null) {
+                let result=toolkit.bucket(event.offsetX,event.offsetY,drawing,canvas.width,canvas.height);
+                if (result.wholeBackground) {
+                    console.log("Color background");
+                } else if (result.closure.length>0) {
+                    console.info(result);
+                    // create a composite
+                    // remove all curves from result.curves from repository and add them to composite
+                    // also add result.floodfill at the end of composite
+                    // and finally add composite to repository
+                    let c=0;
+                    let t=drawing.length;
+                    let composite={type:"compound", data:[]};
+                    composite.data.push({type:"closedbspline", data:result.closure});
+                    for(let i=0; i<result.curves.length; i++) {
+                        if (result.curves[i]) {
+                            composite.data.push(drawing.splice(c,1)[0]);
+                            t=c;
+                        } else {
+                            c++;
+                        }
+                    }
+                    drawing.splice(t,0,composite);
+                    repaint();
+                } else {
+                    console.log("Nothing to do");
+                }
+/*                if (struct!=null) {
                     struct.remove();
                 }
                 struct = document.createElement('canvas');
@@ -453,7 +482,6 @@ app = (() => {
                 struct.style="position:fixed; z-index=10000; top:0px; left:0px;";
                 canvas.parentNode.insertBefore(struct,canvas);
                 let context=struct.getContext("2d");
-                let result=toolkit.floodfill(event.offsetX,event.offsetY,drawing,canvas.width,canvas.height);
                 let opx=null;
                 for(let x=0; x<canvas.width; x++) {
                     for(let y=0; y<canvas.height; y++) {
@@ -473,7 +501,7 @@ app = (() => {
                 struct.addEventListener("click", function() {
                     struct.remove();
                     struct=null;
-                });
+                });*/
             },
             mousemove(event) {
             },

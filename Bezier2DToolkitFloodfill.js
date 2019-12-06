@@ -159,7 +159,7 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
         ranges.push({ startX: lFillLoc, endX: rFillLoc, Y: y });
     }
 
-    function floodfill(x, y, pixels, width, height) {
+    function bitmapFloodfill(x, y, pixels, width, height) {
         let pixelsChecked = [];
         let ranges = [];
         let borders = [];
@@ -663,14 +663,15 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
     function process(x, y, repository, width, height) {
         let pixels = drawRepository(x, y, repository, width, height);
         try {
-            let borders = floodfill(x, y, pixels, width, height);
+            let borders = bitmapFloodfill(x, y, pixels, width, height);
             let tracks = getPointsOnEdgeOfFloodFill(borders, pixels, width, height);
-            let result = createBezierCurves(tracks.tracks, repository);
+            let closure = createBezierCurves(tracks.tracks, repository);
             return {
                 pixels,
                 tracks: tracks.tracks,
                 curves: tracks.curves,
                 borders,
+                closure,
                 wholeBackground: false
             };
         } catch (e) {
@@ -685,6 +686,6 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
         }
     }
 
-    toolkit.floodfill = process;
+    toolkit.bucket = process;
 
 })();
