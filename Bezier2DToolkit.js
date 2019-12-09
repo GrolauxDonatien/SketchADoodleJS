@@ -303,11 +303,12 @@ toolkit = (() => {
     }
 
     function distanceWith(x, y, drawing) {
+        let min;
         switch (drawing.type) {
             case "bspline":
                 return distanceWithBSpline(x, y, drawing);
             case "compound":
-                let min = Number.MAX_VALUE;
+                min = Number.MAX_VALUE;
                 for (let i = 0; i < drawing.data.length; i++) {
                     min = Math.min(min, distanceWith(x, y, drawing.data[i]));
                     if (min == 0) return min;
@@ -315,7 +316,11 @@ toolkit = (() => {
                 return min;
             case "closedbspline":
                 if (insideClosedbspline(x, y, drawing)) return 0;
-                return distanceWithBSpline(x, y, drawing);
+                min=Number.MAX_VALUE;
+                for(let i=0; i<drawing.data.lengt; i++) {
+                    min=Main.min(min,distanceWithBSpline(x, y, {data:drawing.data[i]}));
+                }
+                return min;
         }
         return Number.MAX_VALUE;
     }
@@ -455,7 +460,8 @@ function intersectsPathSegment(path, segment) {
 }
 
 function insideClosedbspline(x, y, drawing) {
-    let box = getBoundingHVRectangle(drawing.data, 0, drawing.data.length / 2);
+    let sp=drawing.data[0];
+    let box = getBoundingHVRectangle(sp, 0, sp.length / 2);
     if (!isPointInHVRectangle(box, x, y))
         return false;
     // segment from left x of the box to x,y
@@ -463,8 +469,8 @@ function insideClosedbspline(x, y, drawing) {
     // intersects segment with all path, counting the number of intersections.
     // odd => inside, even => outside
     let count = 0;
-    for (let i = 0; i < drawing.data.length; i++) {
-        count += intersectsPathSegment(drawing.data[i], segment);
+    for (let i = 0; i < sp.length; i++) {
+        count += intersectsPathSegment(sp[i], segment);
     }
     return count % 2 == 1;
 
@@ -481,6 +487,10 @@ function move(dx, dy, drawing) {
     delete drawing.cache;
     switch (drawing.type) {
         case "closedbspline":
+            for(let i=0; i<drawing.data.length; i++) {
+                movePoints(dx, dy, drawing.data[i]);
+            }
+            break;
         case "bspline":
             movePoints(dx, dy, drawing.data);
             break;
@@ -502,6 +512,10 @@ function scale(factor, drawing) {
     delete drawing.cache;
     switch (drawing.type) {
         case "closedbspline":
+            for(let i=0; i<drawing.data.length; i++) {
+                scalePoints(factor, drawing.data[i]);
+            }
+            break;
         case "bspline":
             scalePoints(factor, drawing.data);
             break;
@@ -552,6 +566,10 @@ function rotate(angle, drawing) {
     delete drawing.cache;
     switch (drawing.type) {
         case "closedbspline":
+            for(let i=0; i<drawing.data.length; i++) {
+                rotatePoints(angle, drawing.data[i]);
+            }
+            break;
         case "bspline":
             rotatePoints(angle, drawing.data);
             break;
