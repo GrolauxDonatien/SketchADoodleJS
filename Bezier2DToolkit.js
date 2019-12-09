@@ -255,7 +255,7 @@ toolkit = (() => {
                 bestdist = canddist;
                 best = { x: candidate.x, y: candidate.y };
                 best.t = t + candidate.t * distance(segments[i], segments[i + 1], segments[i + 2], segments[i + 3]) / len;
-                if (best.t>1) debugger;
+                if (best.t>1) best.t=1; // avoids approximation errors
             }
             t += distance(segments[i], segments[i + 1], segments[i + 2], segments[i + 3]) / len;
         }
@@ -1058,7 +1058,6 @@ function intersectsCurveCurve(curve1, curve1Offset, curve2, curve2Offset, x, y) 
             if (inter != null) {
                 if (cand == null || sqrDistance(inter[0], inter[1], x, y) < sqrDistance(cand[0], cand[1], x, y)) {
                     cand = [inter[0], inter[1], ((l1 + distance(inter[0], inter[1], s1[i], s1[i + 1])) / tl1), ((l2 + distance(inter[0], inter[1], s2[j], s2[j + 1])) / tl2)];
-                    if (isNaN(cand[2])) debugger;
                 }
             }
             l2 += distance(s2[j], s2[j + 1], s2[j + 2], s2[j + 3]);

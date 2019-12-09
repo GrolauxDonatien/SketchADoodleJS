@@ -562,36 +562,36 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
                 } else {
                     // first attempt to stay on this curve
                     closest = toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1], repository[pathN]);
-                    newCurve=closest.n;
-/*                    closest = toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1], { data: toolkit.curveFromBSpline(repository[currentPathN].data, lastCurve) });
-
-                    let d = toolkit.sqrDistance(closest.x, closest.y, pts[idx], pts[idx + 1]);
-                    let newCurve = lastCurve;
-                    if (d > maxDist) {
-                        // if too far away
-                        let count = (repository[currentPathN].data.length - 2) / 4;
-                        closestbef = toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1], { data: toolkit.curveFromBSpline(repository[currentPathN].data, ((lastCurve + count - 1) % count)) })
-                        closestaft = toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1], { data: toolkit.curveFromBSpline(repository[currentPathN].data, ((lastCurve + 1) % count)) })
-                        let dbef = toolkit.sqrDistance(closestbef.x, closestbef.y, pts[idx], pts[idx + 1]);
-                        let daft = toolkit.sqrDistance(closestaft.x, closestaft.y, pts[idx], pts[idx + 1]);
-
-                        if (d > dbef || d > daft) { // fast try next & previous curves
-                            if (dbef < daft) {
-                                d = dbef;
-                                newCurve = (lastCurve + count - 1) % count;
-                            } else {
-                                d = daft;
-                                newCurve = (lastCurve + 1) % count;
-                            }
-                        }
-
-                        if (d > maxDist) { // no match
-                            closest = toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1], repository[currentPathN]);
-                            if (lastCurve == newCurve) { // still on same curve, maxDist should not have triggered, adapt it.
-                                maxDist = d;
-                            }
-                        }
-                    }*/
+                    newCurve = closest.n;
+                    /*                    closest = toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1], { data: toolkit.curveFromBSpline(repository[currentPathN].data, lastCurve) });
+                    
+                                        let d = toolkit.sqrDistance(closest.x, closest.y, pts[idx], pts[idx + 1]);
+                                        let newCurve = lastCurve;
+                                        if (d > maxDist) {
+                                            // if too far away
+                                            let count = (repository[currentPathN].data.length - 2) / 4;
+                                            closestbef = toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1], { data: toolkit.curveFromBSpline(repository[currentPathN].data, ((lastCurve + count - 1) % count)) })
+                                            closestaft = toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1], { data: toolkit.curveFromBSpline(repository[currentPathN].data, ((lastCurve + 1) % count)) })
+                                            let dbef = toolkit.sqrDistance(closestbef.x, closestbef.y, pts[idx], pts[idx + 1]);
+                                            let daft = toolkit.sqrDistance(closestaft.x, closestaft.y, pts[idx], pts[idx + 1]);
+                    
+                                            if (d > dbef || d > daft) { // fast try next & previous curves
+                                                if (dbef < daft) {
+                                                    d = dbef;
+                                                    newCurve = (lastCurve + count - 1) % count;
+                                                } else {
+                                                    d = daft;
+                                                    newCurve = (lastCurve + 1) % count;
+                                                }
+                                            }
+                    
+                                            if (d > maxDist) { // no match
+                                                closest = toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1], repository[currentPathN]);
+                                                if (lastCurve == newCurve) { // still on same curve, maxDist should not have triggered, adapt it.
+                                                    maxDist = d;
+                                                }
+                                            }
+                                        }*/
 
                     if (lastCurve != newCurve) {
                         let jump = true;
@@ -660,17 +660,56 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
         return ret;
     }
 
+    function flatten(drawing) {
+        let ret = [];
+        let map = {};
 
-    function process(x, y, repository, width, height) {
-        let pixels = drawRepository(x, y, repository, width, height);
+        function loop(element, idx) {
+            switch (element.type) {
+                case "compound":
+                    for (let i = 0; i < element.data.length; i++) {
+                        loop(element.data[i],idx);
+                    }
+                    break;
+                case "bspline":
+                case "closedbspline":
+                    ret.push(element);
+                    map[ret.length - 1] = idx;
+                    break;
+            }
+        }
+        for (let i = 0; i < drawing.length; i++) {
+            loop(drawing[i], i);
+        }
+        return {
+            splines:ret,
+            map
+        }
+    }
+
+    function consolidate(drawing,curves,map) {
+        let ret=[];
+        for(let i=0; i<drawing.length; i++) {
+            ret[i]=false;
+        }
+        for(let i=0; i<curves.length; i++) {
+            if (curves[i]) ret[map[i]]=true;
+        }
+        return ret;
+    } 
+
+    function process(x, y, drawing, width, height) {
+        let repository = flatten(drawing);
+        let pixels = drawRepository(x, y, repository.splines, width, height);
         try {
             let borders = bitmapFloodfill(x, y, pixels, width, height);
             let tracks = getPointsOnEdgeOfFloodFill(borders, pixels, width, height);
-            let closure = createBezierCurves(tracks.tracks, repository);
+            let closure = createBezierCurves(tracks.tracks, repository.splines);
+            let curves = consolidate(drawing,tracks.curves, repository.map);
             return {
                 pixels,
                 tracks: tracks.tracks,
-                curves: tracks.curves,
+                curves: curves,
                 borders,
                 closure,
                 wholeBackground: false

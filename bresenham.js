@@ -7,7 +7,10 @@
 */
 
 function assert(a) {
-   if (!a) console.log("Assertion failed in bresenham.js "+a);
+   if (!a) {
+      console.log("Assertion failed in bresenham.js "+a);
+      debugger;
+   }
    return a;
 }
    
