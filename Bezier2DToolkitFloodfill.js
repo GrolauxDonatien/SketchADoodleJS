@@ -4,7 +4,7 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
 (function () {
 
     const fillColor = 16777215;
-    const PI2=Math.PI/2;
+    const PI2 = Math.PI / 2;
 
     function floodfillArray(x, y, pixels, width, height) {
         let borders = [];
@@ -385,13 +385,15 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
         let endy = path[path.length - 1];
         if (endx != startx || endy != starty) {
             path.push((endx + startx) / 2);
-            path.push((endy + starty) / 2, startx, starty);
+            path.push((endy + starty) / 2);
+            path.push(startx);
+            path.push(starty);
         }
         // if (startx,starty)==(lastx,lasty) => we can skip
         if (startx != lastx || starty != lasty) {
             if (startcurve < lastcurve) {
                 // we take the end of startcurve
-                let cut = toolkit.splitRight(currentPath, startcurve*4, startt);
+                let cut = toolkit.splitRight(currentPath, startcurve * 4, startt);
                 path.push(cut[2]);
                 path.push(cut[3]);
                 path.push(cut[4]);
@@ -404,7 +406,7 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
                     path.push(currentPath[i + 3]);
                 }
                 if (lastt > 0.01) {
-                    cut = toolkit.splitLeft(currentPath, lastcurve*4, lastt);
+                    cut = toolkit.splitLeft(currentPath, lastcurve * 4, lastt);
                     path.push(cut[2]);
                     path.push(cut[3]);
                     path.push(cut[4]);
@@ -412,27 +414,27 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
                 }
             } else if (startcurve > lastcurve) {
                 // we take the beginning of lastcurve
-                let cut = toolkit.splitLeft(currentPath, startcurve*4, startt);
+                let cut = toolkit.splitLeft(currentPath, startcurve * 4, startt);
                 path.push(cut[2]);
                 path.push(cut[3]);
-                path.push(cut[4]);
-                path.push(cut[5]);
+                path.push(cut[0]);
+                path.push(cut[1]);
                 // add curves in between
                 for (let i = (startcurve - 1) * 4 + 2; i >= (lastcurve + 1) * 4; i -= 2) {
                     path.push(currentPath[i]);
                     path.push(currentPath[i + 1]);
                 }
                 if (lastt < 0.99) {
-                    cut = toolkit.splitRight(currentPath, lastcurve*4, lastt);
+                    cut = toolkit.splitRight(currentPath, lastcurve * 4, lastt);
                     path.push(cut[2]);
                     path.push(cut[3]);
-                    path.push(cut[4]);
-                    path.push(cut[5]);
+                    path.push(cut[0]);
+                    path.push(cut[1]);
                 }
             } else {
                 if (startt < lastt) {
                     let cut = toolkit
-                        .splitRight(currentPath, startcurve*4, startt);
+                        .splitRight(currentPath, startcurve * 4, startt);
                     cut = toolkit.splitLeft(cut, 0, 1.0 - (1.0 - lastt) / (1.0 - startt));
                     path.push(cut[2]);
                     path.push(cut[3]);
@@ -440,7 +442,7 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
                     path.push(lasty);
                 } else if (startt > lastt) {
                     let cut = toolkit
-                        .splitRight(currentPath, startcurve*4, lastt);
+                        .splitRight(currentPath, startcurve * 4, lastt);
                     cut = toolkit.splitLeft(cut, 0, 1.0 - (1.0 - startt) / (1.0 - lastt));
                     path.push(cut[2]);
                     path.push(cut[3]);
@@ -451,25 +453,25 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
         }
     }
 
-    function join(path, x,  y) {
+    function join(path, x, y) {
         function lineToRectangle(line) {
-            let width=1;
+            let width = 1;
             let angle = toolkit.angleAt0(line[2] - line[0], line[3] - line[1]);
             return [(line[0] - Math.cos(angle + PI2) * width),
-                    (line[1] - Math.sin(angle + PI2) * width),
-                    (line[2] - Math.cos(angle + PI2) * width),
-                    (line[3] - Math.sin(angle + PI2) * width),
-                    (line[2] + Math.cos(angle + PI2) * width),
-                    (line[3] + Math.sin(angle + PI2) * width),
-                    (line[0] + Math.cos(angle + PI2) * width),
-                    (line[1] + Math.sin(angle + PI2) * width) ];
+            (line[1] - Math.sin(angle + PI2) * width),
+            (line[2] - Math.cos(angle + PI2) * width),
+            (line[3] - Math.sin(angle + PI2) * width),
+            (line[2] + Math.cos(angle + PI2) * width),
+            (line[3] + Math.sin(angle + PI2) * width),
+            (line[0] + Math.cos(angle + PI2) * width),
+            (line[1] + Math.sin(angle + PI2) * width)];
         }
-    
-        let ox=path[path.length-2];
-        let oy=path[path.length-1];
-        let r=lineToRectangle([ox,oy,x,y]);
-        let tx=(r[0]+r[2])/2;
-        let ty=(r[1]+r[3])/2;
+
+        let ox = path[path.length - 2];
+        let oy = path[path.length - 1];
+        let r = lineToRectangle([ox, oy, x, y]);
+        let tx = (r[0] + r[2]) / 2;
+        let ty = (r[1] + r[3]) / 2;
         path.push((ox + tx) / 2);
         path.push((oy + ty) / 2);
         path.push(tx);
@@ -504,13 +506,13 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
             let path = [];
             for (let i = 0; i < pts.length / 3; i++) {
                 let idx = i * 3;
-                let pathN = pts[idx + 2]-1;
+                let pathN = pts[idx + 2] - 1;
                 if (pathN != currentPathN) {
                     if (currentPathN != -2) {
-                        let closest =  toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1],repository[pathN]);
-                        let newCurve=closest.n;
-                        closest2=toolkit.intersectsCurveCurve(repository[pathN].data,newCurve*4,repository[currentPathN].data,lastCurve*4, closest.x, closest.y);
-                        if (closest2!==null) {
+                        closest = toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1], repository[pathN]);
+                        let newCurve = closest.n;
+                        closest2 = toolkit.intersectsCurveCurve(repository[pathN].data, newCurve * 4, repository[currentPathN].data, lastCurve * 4, closest.x, closest.y);
+                        if (closest2 !== null) {
                             pushPath(path, repository[currentPathN].data, startx, starty,
                                 startCurve, startt, closest2[0], closest2[1],
                                 lastCurve, closest2[3]);
@@ -519,13 +521,13 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
                             startCurve = newCurve;
                             startt = closest2[2];
                         } else {
-                            closest=toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1],repository[currentPathN]);
-                            let lastCurve=closest.n;
+                            closest = toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1], repository[currentPathN]);
+                            let lastCurve = closest.n;
 
                             pushPath(path, repository[currentPathN].data, startx, starty,
                                 startCurve, startt, closest.x, closest.y,
                                 lastCurve, closest.t);
-                            closest3=toolkit.getClosestPointToBSpline(closest.x,closest.y,repository[pathN]);
+                            closest3 = toolkit.getClosestPointToBSpline(closest.x, closest.y, repository[pathN]);
 
                             path.push((closest.x + closest3.x) / 2);
                             path.push((closest.y + closest3.y) / 2);
@@ -541,9 +543,9 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
                         lastCurve = startCurve;
                         lastt = startt;
                         currentPathN = pathN;
-                    } else {
+                    } else { // first point
 
-                        closest=toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1],repository[pathN]);
+                        closest = toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1], repository[pathN]);
 
                         startCurve = closest.n;
                         startx = closest.x;
@@ -559,17 +561,19 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
                     maxDist = 0.0;
                 } else {
                     // first attempt to stay on this curve
-
-                    closest=toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1],{data:toolkit.curveFromBSpline(repository[pathN], lastCurve*4)});
+                    closest = toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1], repository[pathN]);
+                    newCurve=closest.n;
+/*                    closest = toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1], { data: toolkit.curveFromBSpline(repository[currentPathN].data, lastCurve) });
 
                     let d = toolkit.sqrDistance(closest.x, closest.y, pts[idx], pts[idx + 1]);
                     let newCurve = lastCurve;
                     if (d > maxDist) {
                         // if too far away
-                        closestbef=tookit.getClosestPointToBSpline(pts[idx], pts[idx + 1], {data:toolkit.curveFromBSpline(repository[currentPathN], ((lastCurve + count - 1) % count)*4)})
-                        closestaft=tookit.getClosestPointToBSpline(pts[idx], pts[idx + 1], {data:toolkit.curveFromBSpline(repository[currentPathN], ((lastCurve + 1) % count)*4)})
-                        let dbef = toolkit.sqrDistance(closestbef[0], closestbef[1], pts[idx], pts[idx + 1]);
-                        let daft = toolkit.sqrDistance(closestaft[0], closestaft[1], pts[idx], pts[idx + 1]);
+                        let count = (repository[currentPathN].data.length - 2) / 4;
+                        closestbef = toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1], { data: toolkit.curveFromBSpline(repository[currentPathN].data, ((lastCurve + count - 1) % count)) })
+                        closestaft = toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1], { data: toolkit.curveFromBSpline(repository[currentPathN].data, ((lastCurve + 1) % count)) })
+                        let dbef = toolkit.sqrDistance(closestbef.x, closestbef.y, pts[idx], pts[idx + 1]);
+                        let daft = toolkit.sqrDistance(closestaft.x, closestaft.y, pts[idx], pts[idx + 1]);
 
                         if (d > dbef || d > daft) { // fast try next & previous curves
                             if (dbef < daft) {
@@ -582,15 +586,12 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
                         }
 
                         if (d > maxDist) { // no match
-                            closest=toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1],repository[currentPathN]);
+                            closest = toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1], repository[currentPathN]);
                             if (lastCurve == newCurve) { // still on same curve, maxDist should not have triggered, adapt it.
                                 maxDist = d;
                             }
                         }
-
-                    } else {
-                        newCurve = lastCurve;
-                    }
+                    }*/
 
                     if (lastCurve != newCurve) {
                         let jump = true;
@@ -602,9 +603,9 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
                             && startCurve <= lastCurve) {
                             jump = false;
                         } else {
-                            closest2=toolkit.intersectsCurveCurve(repository[pathN].data,newCurve,repository[currentPathN].data,lastCurve, closest.x, closest.y);
+                            closest2 = toolkit.intersectsCurveCurve(repository[pathN].data, newCurve, repository[currentPathN].data, lastCurve, closest.x, closest.y);
 
-                            if (closest2!=null) {
+                            if (closest2 != null) {
                                 pushPath(path, repository[currentPathN].data, startx, starty,
                                     startCurve, startt, closest2[0], closest2[1],
                                     lastCurve, closest2[3]);
@@ -614,13 +615,13 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
                                 startt = closest2[2];
                                 jump = false;
                             } else {
-                                closest2=tookit.getClosestPointToBSpline(pts[idx], pts[idx + 1], {data:toolkit.curveFromBSpline(repository[currentPathN], lastCurve*4)});
+                                closest2 = tookit.getClosestPointToBSpline(pts[idx], pts[idx + 1], { data: toolkit.curveFromBSpline(repository[currentPathN], lastCurve * 4) });
 
                                 pushPath(path, repository[currentPathN], startx, starty,
                                     startCurve, startt, closest2.x, closest2.y,
                                     lastCurve, closest2.t);
 
-                                closest3=tookit.getClosestPointToBSpline(closest2.x, closest2.y, {data:toolkit.curveFromBSpline(repository[currentPathN], newCurve*4)});
+                                closest3 = tookit.getClosestPointToBSpline(closest2.x, closest2.y, { data: toolkit.curveFromBSpline(repository[currentPathN], newCurve * 4) });
 
                                 path.push((closest2.x + closest3.x) / 2);
                                 path.push((closest2.y + closest3.y) / 2);

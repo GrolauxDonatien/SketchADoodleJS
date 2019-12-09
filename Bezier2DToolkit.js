@@ -1057,7 +1057,8 @@ function intersectsCurveCurve(curve1, curve1Offset, curve2, curve2Offset, x, y) 
             let inter = intersectsSegmentSegment(s1[i], s1[i + 1], s1[i + 2], s1[i + 3], s2[j], s2[j + 1], s2[j + 2], s2[j + 3]);
             if (inter != null) {
                 if (cand == null || sqrDistance(inter[0], inter[1], x, y) < sqrDistance(cand[0], cand[1], x, y)) {
-                    cand = [inter[0], inter[1], ((l1 + distance(inter[0], inter[1], s1[i], s1[i + 1])) / tl1), ((l2 + distance(inter[0], inter[1], s2[j], s1[j + 1])) / tl2)];
+                    cand = [inter[0], inter[1], ((l1 + distance(inter[0], inter[1], s1[i], s1[i + 1])) / tl1), ((l2 + distance(inter[0], inter[1], s2[j], s2[j + 1])) / tl2)];
+                    if (isNaN(cand[2])) debugger;
                 }
             }
             l2 += distance(s2[j], s2[j + 1], s2[j + 2], s2[j + 3]);
