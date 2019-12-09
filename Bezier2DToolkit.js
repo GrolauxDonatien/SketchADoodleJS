@@ -1002,16 +1002,43 @@ function cut(x1, y1, x2, y2, drawing) {
     }
 
     let ret = [];
+    let temp, isCut, groups;
     switch (drawing.type) {
         case "closedbspline":
+                temp = [];
+                isCut = false;
+                for (let i = 0; i < drawing.data.length; i++) {
+                    let o = cutBSPline(x1, y1, x2, y2, {data:drawing.data[i], type:"closedbspline"});
+                    if (o !=null) {
+                        for (let j=0; j<o.length; j++) {
+                            temp.push(o[j]);
+                        }
+                        isCut = true;
+                    } else {
+                        temp.push({data:drawing.data[i], type:"closedbspline"});
+                    }
+                }
+                if (!isCut) return [];
+                groups = sortSlice(temp, x1, y1, x2, y2);
+                function pushcb(drawings) {
+                    if (drawings.length == 0) return; // empty set
+                    let d=[];
+                    for(let i=0; i<drawings.length; i++) {
+                        d.push(drawings[i].data);
+                    }
+                    ret.push({ type: "closedbspline", data: d });
+                }
+                pushcb(groups.above);
+                pushcb(groups.below);
+                pushcb(groups.both);
+                break;
         case "bspline":
-            // FixMe : better detection and management when nothing is cut
             let o = cutBSPline(x1, y1, x2, y2, drawing);
             if (o != null) ret.push.apply(ret, o);
             break;
         case "compound":
-            let temp = [];
-            let isCut = false;
+            temp = [];
+            isCut = false;
             for (let i = 0; i < drawing.data.length; i++) {
                 let o = cut(x1, y1, x2, y2, drawing.data[i]);
                 if (o.length > 0) {
@@ -1022,7 +1049,7 @@ function cut(x1, y1, x2, y2, drawing) {
                 }
             }
             if (!isCut) return [];
-            let groups = sortSlice(temp, x1, y1, x2, y2);
+            groups = sortSlice(temp, x1, y1, x2, y2);
             function push(drawings) {
                 if (drawings.length == 0) return; // empty set
                 if (drawings.length == 1) ret.push(drawings[0]); // do not compound a single drawing
