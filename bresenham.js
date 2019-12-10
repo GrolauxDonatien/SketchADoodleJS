@@ -14,7 +14,7 @@ function assert(a) {
    return a;
 }
    
-function plotLine(x0, y0, x1, y1)
+function plotLineBad(x0, y0, x1, y1)
 {
    var dx =  Math.abs(x1-x0), sx = x0<x1 ? 1 : -1;
    var dy = -Math.abs(y1-y0), sy = y0<y1 ? 1 : -1;
@@ -46,7 +46,7 @@ function plotLineBad2(x0, y0, x1, y1) {
    }
 }
 
-function plotLineVar2(x1, y1, x2, y2) {
+function plotLine(x1, y1, x2, y2) {
 
    // Iterators, counters required by algorithm
    let x, y, dx, dy, dx1, dy1, px, py, xe, ye, i;
@@ -228,6 +228,18 @@ function plotQuadBezierSeg(x0, y0, x1, y1, x2, y2)
 function plotQuadBezier(x0, y0, x1, y1, x2, y2)
 {                                          /* plot any quadratic Bezier curve */
    var x = x0-x1, y = y0-y1, t = x0-2*x1+x2, r;
+
+   if (Math.abs(t)<0.0001) { // x almost colinear => draw a segment instead
+      plotLine(x0,y0,x2,y2);
+      return;
+   }
+
+   let t2 = y0-2*y1+y2;
+   if (Math.abs(t2)<0.0001) { // x almost colinear => draw a segment instead
+      plotLine(x0,y0,x2,y2);
+      return;
+   }
+
 
    if (x*(x2-x1) > 0) {                              /* horizontal cut at P4? */
       if (y*(y2-y1) > 0)                           /* vertical cut at P6 too? */
