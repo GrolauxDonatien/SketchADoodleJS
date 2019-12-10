@@ -940,9 +940,37 @@ function cutBSPline(x1, y1, x2, y2, drawing) {
     if (ret == null) return null;
     switch (drawing.type) {
         case "closedbspline":
+            let i=0;
+            while(i<ret.length-1) {
+                let loop=true;
+                for(let j=i+1; j<ret.length; j++) {
+                    if (Math.abs(ret[i][0]-ret[j][ret[j].length-2])<0.0001 && Math.abs(ret[i][1]-ret[j][ret[j].length-1])<0.0001) {
+                        let c=getClosestPointToSegment(ret[i][0],ret[i][1],[x1,y1,x2,y2]);
+                        if (distance(ret[i][0],ret[i][1],c.x,c.y)>0.0001) {
+                            let t=ret[j];
+                            t.push.apply(t,ret[i].slice(2));
+                            ret[i]=t;
+                            ret.splice(j,1);
+                            loop=false;
+                            break;
+                        } 
+                    } else if (Math.abs(ret[i][ret[i].length-2]-ret[j][0])<0.0001 && Math.abs(ret[i][ret[i].length-1]-ret[j][1])<0.0001) {
+                        let c=getClosestPointToSegment(ret[j][0],ret[j][1],[x1,y1,x2,y2]);
+                        if (distance(ret[j][0],ret[j][1],c.x,c.y)>0.0001) {
+                            let t=ret[i];
+                            t.push.apply(t,ret[j].slice(2));
+                            ret[i]=t;
+                            ret.splice(j,1);
+                            loop=false;
+                            break;
+                        } 
+                    }
+                }
+                if (loop) i++;
+            }
             for (let i = 0; i < ret.length; i++) {
                 ret[i].push((ret[i][0] + ret[i][ret[i].length - 2]) / 2);
-                ret[i].push((ret[i][1] + ret[i][ret[i].length - 1]) / 2);
+                ret[i].push((ret[i][1] + ret[i][ret[i].length - 2]) / 2);
                 ret[i].push(ret[i][0]);
                 ret[i].push(ret[i][1]);
                 ret[i] = { type: "closedbspline", data: ret[i] };
@@ -988,7 +1016,11 @@ function cut(x1, y1, x2, y2, drawing) {
                     }
                 }
             }
-            check(si.data);
+            if (si.data[0] instanceof Array) {
+                check(si.data[0]);
+            } else {
+                check(si.data);
+            }
             if (ab && !be) {
                 above.push(si);
             } else if (!ab && be) {
@@ -1069,7 +1101,7 @@ function intersects(x1, y1, x2, y2, drawing) {
             return intersectsBSplineSegment(x1, y1, x2, y2, drawing.data);
         case "closedbspline":
             if (intersectsBSplineSegment(x1, y1, x2, y2, drawing.data)) return true;
-            return insideSegmentClosedBSpline(x1, y1, x2, y2, drawing.data);
+            return insideClosedbspline(x1,y1,drawing);
         case "compound":
             for (let i = 0; i < drawing.data.length; i++) {
                 if (intersects(x1, y1, x2, y2, drawing.data[i])) return true;
