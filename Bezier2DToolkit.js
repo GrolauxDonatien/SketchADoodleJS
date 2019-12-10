@@ -452,16 +452,14 @@ toolkit = (() => {
 function intersectsPathSegment(path, segment) {
     let count = 0;
     for (let offset = 0; offset < path.length - 2; offset += 4) {
-        let curve = [path[offset], path[offset + 1], path[offset + 2], path[offset + 3], path[offset + 4], path[offset + 5]];
-        getTightBoundingRectangle(curve);
-        count += intersectsCurveSegment(curve, 0, segment[0], segment[1], segment[2], segment[3]) / 3;
+        count += intersectsCurveSegment(path, offset, segment[0], segment[1], segment[2], segment[3]).length / 3;
     }
     return count;
 }
 
 function insideClosedbspline(x, y, drawing) {
     let sp=drawing.data[0];
-    let box = getBoundingHVRectangle(sp, 0, sp.length / 2);
+    let box = getBoundingHVRectangle(sp, 0, sp.length);
     if (!isPointInHVRectangle(box, x, y))
         return false;
     // segment from left x of the box to x,y
@@ -469,9 +467,7 @@ function insideClosedbspline(x, y, drawing) {
     // intersects segment with all path, counting the number of intersections.
     // odd => inside, even => outside
     let count = 0;
-    for (let i = 0; i < sp.length; i++) {
-        count += intersectsPathSegment(sp[i], segment);
-    }
+    count = intersectsPathSegment(sp, segment);
     return count % 2 == 1;
 
 }
