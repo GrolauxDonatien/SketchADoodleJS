@@ -17,6 +17,10 @@ app = (() => {
     }
     let tool = noTool;
 
+    function setDescription(text) {
+        document.getElementById("description").innerHTML=text;
+    }
+
     document.getElementById("clear").addEventListener("click", () => {
         drawing.splice(0);
         repaint();
@@ -120,6 +124,7 @@ app = (() => {
     }
 
     document.getElementById("lines").addEventListener("click", () => {
+        setDescription("Click and drag mouse to draw lines");
         tool.deselect();
         tool = {
             mousedown(event) {
@@ -151,6 +156,7 @@ app = (() => {
     });
 
     document.getElementById("delete").addEventListener("click", () => {
+        setDescription("Click on the elements to delete");
         function erase(x,y){
             for (let i = drawing.length - 1; i >= 0; i--) {
                 let distance = toolkit.distanceWith(event.offsetX, event.offsetY, drawing[i]);
@@ -187,6 +193,7 @@ app = (() => {
     });
 
     document.getElementById("move").addEventListener("click", () => {
+        setDescription("Click an drag an element to move it");
         tool.deselect();
         let x, y;
         tool = {
@@ -222,6 +229,7 @@ app = (() => {
     });
 
     document.getElementById("rotate").addEventListener("click", () => {
+        setDescription("Click on an element to place an anchor<br>Then drag from another place to rotate/resize.");
         tool.deselect();
         let x1, y1, x2, y2, ox, oy, rx1, ry1, rx2, ry2;
         let mode;
@@ -326,6 +334,7 @@ app = (() => {
 
 
     document.getElementById("cut").addEventListener("click", () => {
+        setDescription("Drag a line and all elements will be cut along the line")
         tool.deselect();
         let x1, y1, x2, y2;
         let mode=false;
@@ -381,6 +390,7 @@ app = (() => {
     });
 
     document.getElementById("glue").addEventListener("click", () => {
+        setDescription("Drag a line and all elements touching the line will be glued together");
         tool.deselect();
         let x1, y1, x2, y2;
         let mode=false;
@@ -445,6 +455,7 @@ app = (() => {
 
     
     document.getElementById("fill").addEventListener("click", () => {
+        setDescription("Click a point inside an enclosed area to fill it with color");
         tool.deselect();
         struct=null;
         tool = {
