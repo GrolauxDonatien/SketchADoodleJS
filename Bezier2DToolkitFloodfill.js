@@ -563,35 +563,6 @@ let setPixelAA = function (x, y) { setPixel(x, y); };
                     // first attempt to stay on this curve
                     closest = toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1], repository[pathN]);
                     newCurve = closest.n;
-                    /*                    closest = toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1], { data: toolkit.curveFromBSpline(repository[currentPathN].data, lastCurve) });
-                    
-                                        let d = toolkit.sqrDistance(closest.x, closest.y, pts[idx], pts[idx + 1]);
-                                        let newCurve = lastCurve;
-                                        if (d > maxDist) {
-                                            // if too far away
-                                            let count = (repository[currentPathN].data.length - 2) / 4;
-                                            closestbef = toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1], { data: toolkit.curveFromBSpline(repository[currentPathN].data, ((lastCurve + count - 1) % count)) })
-                                            closestaft = toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1], { data: toolkit.curveFromBSpline(repository[currentPathN].data, ((lastCurve + 1) % count)) })
-                                            let dbef = toolkit.sqrDistance(closestbef.x, closestbef.y, pts[idx], pts[idx + 1]);
-                                            let daft = toolkit.sqrDistance(closestaft.x, closestaft.y, pts[idx], pts[idx + 1]);
-                    
-                                            if (d > dbef || d > daft) { // fast try next & previous curves
-                                                if (dbef < daft) {
-                                                    d = dbef;
-                                                    newCurve = (lastCurve + count - 1) % count;
-                                                } else {
-                                                    d = daft;
-                                                    newCurve = (lastCurve + 1) % count;
-                                                }
-                                            }
-                    
-                                            if (d > maxDist) { // no match
-                                                closest = toolkit.getClosestPointToBSpline(pts[idx], pts[idx + 1], repository[currentPathN]);
-                                                if (lastCurve == newCurve) { // still on same curve, maxDist should not have triggered, adapt it.
-                                                    maxDist = d;
-                                                }
-                                            }
-                                        }*/
 
                     if (lastCurve != newCurve) {
                         let jump = true;
